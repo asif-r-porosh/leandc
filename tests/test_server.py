@@ -115,10 +115,11 @@ async def test_usage_log_is_metadata_only(client, cfg):
     await call(client, "run", cmd="echo TOPSECRET-COMMAND")
     await call(client, "read", path=f"{cfg.default_cwd}/missing")
     raw = client.app.usage.file.read_text()
-    assert "TOPSECRET" not in raw and cfg.default_cwd not in raw and "echo" not in raw
+    assert "TOPSECRET" not in raw and cfg.default_cwd not in raw
     rows = [json.loads(line) for line in raw.splitlines()]
     assert [r["tool"] for r in rows] == ["write", "run", "read"]
     assert rows[1]["exit"] == 0 and rows[1]["ok"] is True
+    assert rows[1]["cmds"] == {"echo": 1}  # N5: command names are counted, arguments never
     assert rows[2]["ok"] is False and rows[2]["code"] == "NOT_FOUND"
     assert rows[0]["path"] and len(rows[0]["path"]) == 8
 
@@ -164,3 +165,13 @@ def test_selfcheck_only_insists_on_bash(cfg):
     assert not odd.failed and not odd.warned  # an absent optional tool is information, never a warning
     bad = run_check(rep(cfg, required_commands=("bash", "definitely-not-installed")))
     assert bad.failed
+
+
+async def test_usage_log_counts_command_names_without_arguments(client):
+    await call(client, "run", cmd="ls /tmp | grep SECRET_VALUE_XYZ; ls")
+    await call(client, "read", path="/etc/hostname")
+    lines = [json.loads(x) for x in client.app.usage.file.read_text().splitlines()]
+    run = next(e for e in lines if e["tool"] == "run")
+    assert run["cmds"] == {"ls": 2, "grep": 1}
+    assert "cmds" not in next(e for e in lines if e["tool"] == "read")
+    assert "SECRET_VALUE_XYZ" not in client.app.usage.file.read_text()

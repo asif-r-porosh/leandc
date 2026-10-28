@@ -23,6 +23,7 @@ from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
 
 from . import __version__
+from .cmdnames import command_names
 from .config import Config, ConfigError, load_config
 from .errors import code_of, message
 from .files import edit_file, read_file, write_file
@@ -194,6 +195,7 @@ def _record(usage: UsageLog, tool: str, args: dict[str, Any], result: Any, dur: 
     if m:
         exit_code = int(m.group(1))
     path = args.get("path")
+    cmd = args.get("cmd")
     usage.record(
         tool,
         dur,
@@ -203,6 +205,7 @@ def _record(usage: UsageLog, tool: str, args: dict[str, Any], result: Any, dur: 
         in_bytes=len(json.dumps(args, default=str)),
         out_bytes=len(text.encode("utf-8", "replace")),
         path=path if isinstance(path, str) else None,
+        cmds=command_names(cmd) if tool == "run" and isinstance(cmd, str) else None,
     )
 
 

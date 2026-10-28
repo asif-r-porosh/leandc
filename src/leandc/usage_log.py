@@ -1,7 +1,8 @@
 """Metadata-only usage log (D19, D12).
 
-Records: time, tool, duration, outcome, sizes, and a short hash of the path.
-Never records commands, paths, arguments, or content. Rotated by size.
+Records: time, tool, duration, outcome, sizes, a short hash of the path, and for `run` the
+command names used with counts (e.g. {"ls":3,"grep":1}). Never records arguments, paths or
+content. Rotated by size.
 """
 from __future__ import annotations
 
@@ -41,6 +42,7 @@ class UsageLog:
         in_bytes: int = 0,
         out_bytes: int = 0,
         path: str | None = None,
+        cmds: dict[str, int] | None = None,
     ) -> None:
         if not self._cfg.enabled:
             return
@@ -55,6 +57,8 @@ class UsageLog:
             "out": out_bytes,
             "path": path_hash(path) if path else None,
         }
+        if cmds:
+            entry["cmds"] = cmds
         line = json.dumps(entry, separators=(",", ":")) + "\n"
         try:
             with self._lock:
