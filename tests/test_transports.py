@@ -59,8 +59,8 @@ def http_server(tmp_path):
     )
     proc = subprocess.Popen(
         [sys.executable, "-m", "leandc.server", "serve", "--config", cfg],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,  # uvicorn writes its access log to stdout: look at both streams
+        stderr=subprocess.STDOUT,
         text=True,
     )
     for _ in range(100):
@@ -69,7 +69,7 @@ def http_server(tmp_path):
             break
         except OSError:
             if proc.poll() is not None:
-                raise RuntimeError(proc.stderr.read())
+                raise RuntimeError(proc.stdout.read())
             time.sleep(0.1)
     else:
         proc.kill()
@@ -140,5 +140,6 @@ async def test_http_log_never_contains_secret(http_server):
         await c.call_tool("run", {"cmd": "echo x"})
     _post(port, f"/{SECRET}/mcp", "evil.example")
     proc.terminate()
-    err = proc.communicate(timeout=10)[1]
+    err = proc.communicate(timeout=10)[0]
     assert SECRET not in err and "listening" in err
+    assert "POST /" not in err, "access log must stay off (it would print the secret path)"

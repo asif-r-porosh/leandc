@@ -307,16 +307,18 @@ def serve(cfg: Config, transport: str, ignore_check: bool = False) -> int:
         app.server.run("stdio")
         return 0
     secret, security = _http_settings(cfg)
-    # uvicorn's access log would print the secret path on every request.
-    logging.getLogger("uvicorn.access").disabled = True
     print(f"leandc listening on {cfg.http.host}:{cfg.http.port} path=/<secret>/mcp", file=sys.stderr)
-    app.server.run(
-        "streamable-http",
-        host=cfg.http.host,
-        port=cfg.http.port,
+    # We run uvicorn ourselves (MCPServer.run cannot turn the access log off): that log prints the
+    # secret path on every request, and systemd would keep it in the journal.
+    import uvicorn
+
+    asgi = app.server.streamable_http_app(
         streamable_http_path=f"/{secret}/mcp",
         transport_security=security,
+        host=cfg.http.host,
     )
+    config = uvicorn.Config(asgi, host=cfg.http.host, port=cfg.http.port, log_level="info", access_log=False)
+    asyncio.run(uvicorn.Server(config).serve())
     return 0
 
 
