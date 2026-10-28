@@ -92,7 +92,7 @@ def test_read_not_found(cfg, tmp_path):
 
 def test_read_directory(cfg, tmp_path):
     msg = err(files.read_file, cfg, str(tmp_path))
-    assert msg.startswith("ERROR IS_DIR:") and "eza" in msg
+    assert msg.startswith("ERROR IS_DIR:") and "ls -la" in msg
 
 
 def test_read_binary_refused(cfg, tmp_path):

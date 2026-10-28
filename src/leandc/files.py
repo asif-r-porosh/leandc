@@ -48,7 +48,7 @@ def _stat(p: str) -> os.stat_result:
     try:
         return os.stat(p)
     except FileNotFoundError:
-        fail("NOT_FOUND", f"no such file or directory: {p}", "Check the path; use run with `eza` or `fd` to look around")
+        fail("NOT_FOUND", f"no such file or directory: {p}", "Check the path; use run with `ls` or `find` to look around")
     except NotADirectoryError:
         fail("NOT_FOUND", f"a parent of {p} is not a directory", "Check the path")
     except PermissionError:
@@ -72,7 +72,7 @@ def read_file(cfg: Config, path: str, offset: int | None = None, limit: int | No
     p = resolve(cfg, path)
     st = _stat(p)
     if stat.S_ISDIR(st.st_mode):
-        fail("IS_DIR", f"{p} is a directory", f"Use run with `eza -la {p}`")
+        fail("IS_DIR", f"{p} is a directory", f"Use run with `ls -la {p}`")
     if not stat.S_ISREG(st.st_mode):
         fail("BAD_PARAM", f"{p} is not a regular file", "Use run to inspect it")
 
