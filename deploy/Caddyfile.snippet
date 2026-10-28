@@ -1,0 +1,7 @@
+# One-level hostname (Cloudflare free SSL covers one level only). DNS record must be grey cloud (DNS only):
+# the orange-cloud proxy cuts requests at about 100 s and leandc allows 120 s calls.
+leandc-yourname.example.com {
+    reverse_proxy 127.0.0.1:8765 {
+        flush_interval -1
+    }
+}

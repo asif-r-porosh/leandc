@@ -1,0 +1,27 @@
+# One Brewfile for the Mac and the Ubuntu VM (D9). Apply: brew bundle --file Brewfile
+# Core
+brew "bash"
+brew "uv"
+brew "git"
+brew "curl"
+brew "wget"
+brew "rsync"
+brew "jq"
+brew "yq"
+brew "tmux"
+brew "htop"
+# GNU userland (flags identical on both machines)
+brew "coreutils"
+brew "findutils"
+brew "gnu-sed"
+brew "grep"
+brew "gawk"
+brew "gnu-tar"
+brew "diffutils"
+# Search and view
+brew "ripgrep"
+brew "fd"
+brew "eza"
+brew "bat"
+brew "fzf"
+brew "tree"

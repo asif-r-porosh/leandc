@@ -1,0 +1,39 @@
+# leandc config. Copy to a private place (chmod 600) and point LEANDC_CONFIG or --config at it.
+# No tool can change this file (D12). Unknown keys are rejected at startup.
+
+target = "vm"                      # "vm": HTTPS behind a TLS proxy.  "mac": stdio only, never listens.
+default_cwd = "~"                  # where run starts when the caller passes no cwd; relative paths resolve here
+# shell = "bash"                   # run uses: <shell> --noprofile --norc -c <cmd>
+bin_dir = "~/.local/share/leandc/bin"   # symlink farm made by bootstrap.sh; put first on PATH for every command
+state_dir = "~/.local/state/leandc"     # job buffers and the usage log
+# allowed_roots = ["~/work"]       # optional guardrail for read/write/edit (not a security boundary)
+
+# Startup self-check: missing required = refuse to start; missing recommended = warning.
+# required_commands = ["bash", "sed", "grep", "find", "rg", "git"]
+# recommended_commands = ["fd", "eza", "bat", "jq", "uv"]
+
+[http]                             # target = "vm" only
+host = "127.0.0.1"                 # keep local; the TLS proxy is the public face
+port = 8765
+path_secret = ""                   # >= 24 chars, no '/'. Generate: leandc secret. Or set LEANDC_PATH_SECRET.
+allowed_hosts = ["leandc.example.com"]   # public hostname exactly as claude.ai calls it (D24)
+
+[log]                              # metadata only: tool, duration, exit, sizes, 8-char path hash
+enabled = true
+max_bytes = 1000000
+keep = 3
+
+[caps]                             # defaults shown; tune from the usage log
+# read_default_lines = 300
+# read_max_lines = 1000
+# read_max_chars = 40000
+# read_line_chars = 2000
+# run_default_chars = 8000
+# run_max_chars = 30000
+# sync_default_s = 30
+# sync_max_s = 120
+# job_wait_max_s = 120
+# job_buffer_bytes = 1000000
+# job_expiry_h = 24
+# write_max_lines = 800
+# edit_diff_chars = 400
