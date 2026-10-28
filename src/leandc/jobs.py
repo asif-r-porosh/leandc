@@ -169,8 +169,6 @@ def build_env(cfg: Config, extra: dict[str, str] | None) -> dict[str, str]:
     env.pop("BASH_ENV", None)
     env.pop("ENV", None)
     path = env.get("PATH", "/usr/local/bin:/usr/bin:/bin")
-    if cfg.bin_dir:
-        path = f"{cfg.bin_dir}:{path}"
     env["PATH"] = path
     env.update({"NO_COLOR": "1", "TERM": "dumb", "PAGER": "cat", "GIT_PAGER": "cat", "GIT_TERMINAL_PROMPT": "0"})
     if extra:
@@ -273,7 +271,7 @@ class JobManager:
         except FileNotFoundError:
             job.buf.close()
             shutil.rmtree(directory, ignore_errors=True)
-            fail("INTERNAL", f"shell '{self.cfg.shell}' not found", "Check `shell` and `bin_dir` in the config")
+            fail("INTERNAL", f"shell '{self.cfg.shell}' not found", "Check `shell` in the config")
         except PermissionError:
             job.buf.close()
             shutil.rmtree(directory, ignore_errors=True)

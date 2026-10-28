@@ -46,10 +46,11 @@ def info_line(cfg: Config, facts: dict[str, str]) -> str:
         bits.append(f"bash {facts['bash']}")
     if facts.get("python"):
         bits.append(f"python {facts['python']}")
-    bits.append("GNU userland")
-    have = [c for c in ("rg", "fd", "eza", "bat", "jq", "uv", "git") if shutil.which(c, path=build_env(cfg, None)["PATH"])]
+    if facts.get("os"):
+        bits.insert(1, f"{facts['os']}, {facts.get('flavor', '?')} userland")
+    have = [c for c in cfg.recommended_commands if shutil.which(c, path=build_env(cfg, None)["PATH"])]
     if have:
-        bits.append("on PATH: " + " ".join(have))
+        bits.append("also installed: " + " ".join(have))
     bits.append(f"output cap {caps.run_default_chars} (max {caps.run_max_chars}) chars")
     return "; ".join(bits) + "."
 
@@ -63,7 +64,7 @@ def describe_run(cfg: Config, facts: dict[str, str]) -> str:
         f"timeout = seconds to wait (default {caps.sync_default_s}, max {caps.sync_max_s}); if the command is still running "
         "you get a job id and it keeps running: use the job tool. "
         "Result starts with `exit=<code> cwd=<dir>`. cwd is per call and not remembered between calls. "
-        "Search and list with rg, fd, eza through this tool."
+        "Use the commands this OS ships and write them for the userland named above."
     )
 
 

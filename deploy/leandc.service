@@ -6,9 +6,9 @@ Wants=network-online.target
 
 [Service]
 User=asif
-WorkingDirectory=/home/asif/leandc
+WorkingDirectory=/home/asif/apps/leandc
 Environment=LEANDC_CONFIG=/home/asif/.config/leandc/config.toml
-ExecStart=/home/asif/leandc/.venv/bin/leandc serve
+ExecStart=/home/asif/apps/leandc/.venv/bin/leandc serve
 Restart=on-failure
 RestartSec=3
 # Do NOT set KillMode=process: leandc kills its own jobs on stop; stray children must not outlive the service.

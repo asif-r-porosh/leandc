@@ -4,13 +4,13 @@
 target = "vm"                      # "vm": HTTPS behind a TLS proxy.  "mac": stdio only, never listens.
 default_cwd = "~"                  # where run starts when the caller passes no cwd; relative paths resolve here
 # shell = "bash"                   # run uses: <shell> --noprofile --norc -c <cmd>
-bin_dir = "~/.local/share/leandc/bin"   # symlink farm made by bootstrap.sh; put first on PATH for every command
 state_dir = "~/.local/state/leandc"     # job buffers and the usage log
 # allowed_roots = ["~/work"]       # optional guardrail for read/write/edit (not a security boundary)
 
-# Startup self-check: missing required = refuse to start; missing recommended = warning.
-# required_commands = ["bash", "sed", "grep", "find", "rg", "git"]
-# recommended_commands = ["fd", "eza", "bat", "jq", "uv"]
+# Startup self-check: a missing required command refuses to start. The "recommended" ones are only
+# listed (and shown in the run description if installed); leandc never installs anything.
+# required_commands = ["bash"]
+# recommended_commands = ["git", "rg", "fd", "eza", "bat", "jq"]
 
 [http]                             # target = "vm" only
 host = "127.0.0.1"                 # keep local; the TLS proxy is the public face

@@ -49,11 +49,10 @@ class Config:
     target: str = "vm"
     default_cwd: str = field(default_factory=lambda: str(Path.home()))
     shell: str = "bash"
-    bin_dir: str | None = None
     state_dir: str = field(default_factory=lambda: str(Path.home() / ".local" / "state" / "leandc"))
     allowed_roots: tuple[str, ...] = ()
-    required_commands: tuple[str, ...] = ("bash", "sed", "grep", "find", "rg", "git")
-    recommended_commands: tuple[str, ...] = ("fd", "eza", "bat", "jq", "uv")
+    required_commands: tuple[str, ...] = ("bash",)
+    recommended_commands: tuple[str, ...] = ("git", "rg", "fd", "eza", "bat", "jq")
     caps: Caps = field(default_factory=Caps)
     http: HttpConfig = field(default_factory=HttpConfig)
     log: LogConfig = field(default_factory=LogConfig)
@@ -91,7 +90,7 @@ def _build(cls: type, raw: dict[str, Any], where: str) -> Any:
         elif isinstance(current, str) or current is None:
             if not isinstance(value, str):
                 raise ConfigError(f"{where}.{key} must be a string")
-            if key in {"default_cwd", "state_dir", "bin_dir"}:
+            if key in {"default_cwd", "state_dir"}:
                 value = _expand(value)
         kwargs[key] = value
     return replace(defaults, **kwargs)

@@ -8,7 +8,7 @@ dependencies = ["mcp==2.3.0"]
 [project.scripts]
 leandc = "leandc.server:main"
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [build-system]

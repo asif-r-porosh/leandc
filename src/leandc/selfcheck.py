@@ -1,8 +1,8 @@
-"""Startup self-check (spec section 4).
+"""Startup self-check.
 
-Resolves every expected command through the same PATH that `run` uses (leandc bin
-dir first) and checks it is the right flavor. Mismatches are reported, never
-silently tolerated.
+leandc uses what the OS ships (BACKLOG N1), so this only *insists* on bash and on a
+writable state dir. Everything else is information: which OS and userland flavor
+(Claude writes commands for it), and which optional tools happen to be installed.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from .config import Config
 from .jobs import build_env
 
-OK, WARN, FAIL = "ok", "warn", "FAIL"
+OK, INFO, WARN, FAIL = "ok", "info", "warn", "FAIL"
 
 
 @dataclass
@@ -69,61 +69,60 @@ def _first_version(text: str) -> str:
     return m.group(0) if m else "?"
 
 
+def _os_name() -> str:
+    """Human-readable OS, e.g. 'macOS 15.1' or 'Ubuntu 24.04.4 LTS'."""
+    if platform.system() == "Darwin":
+        return f"macOS {platform.mac_ver()[0]}".strip()
+    try:
+        with open("/etc/os-release") as fh:
+            for line in fh:
+                if line.startswith("PRETTY_NAME="):
+                    return line.split("=", 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return f"{platform.system()} {platform.release()}"
+
+
+def _flavor(env: dict[str, str]) -> str:
+    """Userland flavor: GNU (Linux), BSD (macOS) or busybox, judged from `ls --version`."""
+    rc, out = _sh(env, "ls --version 2>&1 | head -1")
+    if rc == 0 and "GNU" in out:
+        return "GNU"
+    if "BusyBox" in out or "busybox" in out:
+        return "busybox"
+    return "BSD" if platform.system() in ("Darwin", "FreeBSD", "OpenBSD", "NetBSD") else "unknown"
+
+
 def run_check(cfg: Config) -> Report:
     rep = Report()
     env = build_env(cfg, None)
     path = env["PATH"]
 
-    # --- environment facts
-    rep.facts["os"] = f"{platform.system()} {platform.machine()}"
-    rep.add(OK, "platform", f"{platform.system()} {platform.release()} {platform.machine()}")
-    if platform.system() == "Linux":
-        libc = " ".join(platform.libc_ver())
-        rep.add(OK, "libc", libc or "unknown")
+    # --- what Claude needs to know to write commands
+    rep.facts["os"] = _os_name()
+    rep.facts["flavor"] = _flavor(env)
+    rep.add(INFO, "os", f"{rep.facts['os']} {platform.machine()}")
+    rep.add(INFO, "userland", f"{rep.facts['flavor']} (commands are written for this flavor)")
 
-    # --- python
+    # --- python (a plain requirement)
     py = sys.version_info
     rep.facts["python"] = f"{py.major}.{py.minor}"
-    rep.add(OK if (py.major, py.minor) == (3, 12) else WARN, "python", f"{py.major}.{py.minor}.{py.micro} (want 3.12)")
+    rep.add(OK if (py.major, py.minor) >= (3, 12) else FAIL, "python", f"{py.major}.{py.minor}.{py.micro} (need 3.12 or newer)")
 
-    # --- bin dir
-    if cfg.bin_dir:
-        if os.path.isdir(cfg.bin_dir):
-            rep.add(OK, "bin_dir", cfg.bin_dir)
-        else:
-            rep.add(FAIL, "bin_dir", f"{cfg.bin_dir} does not exist; run bootstrap.sh")
-    else:
-        rep.add(WARN, "bin_dir", "not set: commands resolve through the plain PATH, flavors are not controlled")
-
-    # --- commands
+    # --- shell: the one command we insist on
     for name in cfg.required_commands:
         found = shutil.which(name, path=path)
         rep.add(OK if found else FAIL, name, found or "missing (required)")
-    for name in cfg.recommended_commands:
-        found = shutil.which(name, path=path)
-        rep.add(OK if found else WARN, name, found or "missing (recommended)")
-
-    # --- flavors (each runs through the same PATH `run` uses)
     rc, out = _sh(env, "bash --version | head -1")
     ver = _first_version(out)
     rep.facts["bash"] = ver
     major = int(ver.split(".")[0]) if ver != "?" else 0
-    rep.add(OK if major >= 5 else FAIL, "bash version", f"{ver} (want 5 or newer)")
+    rep.add(OK if major >= 3 else FAIL, "bash version", f"{ver}" + (" (old but works)" if major < 5 else ""))
 
-    checks = [
-        ("sed GNU", "sed --version 2>&1 | head -1", lambda r, o: r == 0 and "GNU" in o, "GNU sed needed (sed -i without suffix)"),
-        ("grep -P", "echo a1 | grep -oP 'a\\K\\d'", lambda r, o: r == 0 and o == "1", "grep with -P needed"),
-        ("find -printf", "find . -maxdepth 0 -printf '%p'", lambda r, o: r == 0 and o == ".", "GNU find needed"),
-        ("date -d", "date -d '2020-01-02' +%F", lambda r, o: r == 0 and o == "2020-01-02", "GNU date needed"),
-        ("stat -c", "stat -c %s /dev/null", lambda r, o: r == 0 and o == "0", "GNU stat needed"),
-        ("readlink -f", "readlink -f .", lambda r, o: r == 0 and o.startswith("/"), "GNU readlink needed"),
-        ("rg flavor", "rg --version | head -1", lambda r, o: r == 0 and o.startswith("ripgrep"), "ripgrep needed"),
-    ]
-    for name, script, ok_fn, why in checks:
-        rc, out = _sh(env, script)
-        rep.add(OK if ok_fn(rc, out) else FAIL, name, out.splitlines()[0][:60] if ok_fn(rc, out) and out else why)
-        if name == "rg flavor" and ok_fn(rc, out):
-            rep.facts["rg"] = _first_version(out)
+    # --- optional tools: information only, never a warning
+    for name in cfg.recommended_commands:
+        found = shutil.which(name, path=path)
+        rep.add(INFO, name, found or "not installed (optional)")
 
     # --- state dir writable
     try:

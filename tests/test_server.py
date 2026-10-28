@@ -20,7 +20,7 @@ def anyio_backend():
 def cfg(tmp_path):
     work = tmp_path / "work"
     work.mkdir()
-    return Config(default_cwd=str(work), state_dir=str(tmp_path / "state"), caps=Caps(), bin_dir=None)
+    return Config(default_cwd=str(work), state_dir=str(tmp_path / "state"), caps=Caps())
 
 
 @pytest.fixture
@@ -144,3 +144,23 @@ async def test_long_command_becomes_job_and_job_reads(client):
     jid = t.split("job=")[1].split()[0]
     out = await call(client, "job", id=jid, wait=10)
     assert "done" in text(out) and "exit=0" in text(out)
+
+
+def test_info_line_states_os_and_flavor(cfg):
+    from leandc.server import info_line
+
+    line = info_line(cfg, {"os": "macOS 15.1", "flavor": "BSD", "bash": "3.2", "python": "3.12"})
+    assert "macOS 15.1, BSD userland" in line and "bash 3.2" in line and "GNU" not in line
+
+
+def test_selfcheck_only_insists_on_bash(cfg):
+    from dataclasses import replace as rep
+
+    from leandc.selfcheck import run_check
+
+    ok = run_check(cfg)
+    assert not ok.failed and ok.facts["flavor"] in {"GNU", "BSD", "busybox", "unknown"} and ok.facts["os"]
+    odd = run_check(rep(cfg, recommended_commands=("definitely-not-installed",)))
+    assert not odd.failed and not odd.warned  # an absent optional tool is information, never a warning
+    bad = run_check(rep(cfg, required_commands=("bash", "definitely-not-installed")))
+    assert bad.failed

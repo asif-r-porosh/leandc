@@ -183,7 +183,7 @@ async def test_loop_not_blocked_by_large_output(env):
 
     t = asyncio.create_task(ticker())
     t0 = time.monotonic()
-    await run(env, "yes | head -c 400000000", max_chars=1000, timeout=60)
+    await run(env, "yes | head -c 1500000000", max_chars=1000, timeout=60)
     elapsed = time.monotonic() - t0
     t.cancel()
     assert elapsed > 0.8, "command too short to prove anything"
