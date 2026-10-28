@@ -27,17 +27,18 @@ Prerequisites: **Python 3.12 or newer** with `venv` and `pip` (Ubuntu 24.04: `su
 
 ```
 git clone <your repo> leandc && cd leandc
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -e .
-mkdir -p ~/.config/leandc && cp config.example.toml ~/.config/leandc/config.toml    # edit; chmod 600
-.venv/bin/leandc check --config ~/.config/leandc/config.toml
+./install.sh
 ```
 
-`leandc check` must end with `self-check passed`. `serve` runs the same check and refuses to start on a FAIL. (Where the checkout and venv should live is still open: BACKLOG N6.)
+`install.sh` makes a private venv in `~/.local/share/leandc/venv`, installs the pinned requirements and a copy of leandc (so the checkout can be moved or deleted), writes `~/.config/leandc/config.toml` from the example if you have none (edit it; mode 600), and runs `leandc check`. Re-run it to update. Options: `LEANDC_HOME` (install dir), `LEANDC_CONFIG`, `LEANDC_PYTHON` (which interpreter). Uninstall: delete `~/.local/share/leandc`.
+
+Layout, in the style of pipx and the other Python tools: program in `~/.local/share/leandc`, config in `~/.config/leandc`, logs and job buffers in `~/.local/state/leandc`. MCP clients just launch the absolute path of `venv/bin/leandc`; there is no standard install directory beyond that.
+
+`leandc check` must end with `self-check passed`. `serve` runs the same check and refuses to start on a FAIL.
 
 ### Mac (stdio)
 
-Config: `target = "mac"`. In the Claude desktop app's MCP config add a server whose command is the absolute path of `.venv/bin/leandc` with args `serve --config /abs/path/config.toml`. Nothing else is needed; it never listens.
+Config: `target = "mac"`. In the Claude desktop app's MCP config add a server whose command is the absolute path of `~/.local/share/leandc/venv/bin/leandc` (written out in full) with args `["serve", "--config", "/Users/<you>/.config/leandc/config.toml"]`. It never listens. Launched from the app, PATH is minimal, so Claude sees the stock macOS tools (BSD userland, bash 3.2); the run description says so.
 
 ### VM (HTTPS)
 
@@ -52,7 +53,7 @@ Security: one long secret in the URL path plus an allowed-hosts check. Anyone wh
 ## Develop
 
 ```
-.venv/bin/pip install -e '.[dev]'
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -e '.[dev]'
 .venv/bin/python -m pytest      # about 35 s
 ```
 
