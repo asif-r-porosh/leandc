@@ -1,4 +1,4 @@
-"""Which commands did a `run` call use? Names only, never arguments (BACKLOG N5).
+"""Which commands did a `run` call use? Names only, never arguments.
 
 Deliberately rough: it reads the command position of each pipeline/list segment, skips
 quoted strings, heredoc bodies, VAR=value prefixes and redirections, and keeps only

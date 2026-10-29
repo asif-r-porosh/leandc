@@ -1,6 +1,6 @@
 """Startup self-check.
 
-leandc uses what the OS ships (BACKLOG N1), so this only *insists* on bash and on a
+leandc uses what the OS ships, so this only *insists* on bash and on a
 writable state dir. Everything else is information: which OS and userland flavor
 (Claude writes commands for it), and which optional tools happen to be installed.
 """

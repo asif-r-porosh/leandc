@@ -5,3 +5,7 @@ __pycache__/
 config.toml
 *.jsonl
 .DS_Store
+
+# Private working notes (kept on disk, not published)
+BACKLOG.md
+leandc-spec.md

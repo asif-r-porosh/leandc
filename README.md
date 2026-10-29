@@ -127,5 +127,3 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -e '.[dev]'
 ```
 
 Tests need bash and `pgrep`. The MCP SDK is pinned (`mcp==2.3.0`) and the middleware API it relies on is provisional, so re-run the suite after any SDK bump, then regenerate `requirements.txt`.
-
-Design notes and open work are in `BACKLOG.md`.
