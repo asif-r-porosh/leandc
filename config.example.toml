@@ -1,5 +1,5 @@
 # leandc config. Copy to a private place (chmod 600) and point LEANDC_CONFIG or --config at it.
-# No tool can change this file (D12). Unknown keys are rejected at startup.
+# No tool can change this file. Unknown keys are rejected at startup.
 
 target = "vm"                      # "vm": HTTPS behind a TLS proxy.  "mac": stdio only, never listens.
 default_cwd = "~"                  # where run starts when the caller passes no cwd; relative paths resolve here
@@ -16,7 +16,7 @@ state_dir = "~/.local/state/leandc"     # job buffers and the usage log
 host = "127.0.0.1"                 # keep local; the TLS proxy is the public face
 port = 8765
 path_secret = ""                   # >= 24 chars, no '/'. Generate: leandc secret. Or set LEANDC_PATH_SECRET.
-allowed_hosts = ["leandc.example.com"]   # public hostname exactly as claude.ai calls it (D24)
+allowed_hosts = ["leandc.example.com"]   # public hostname exactly as claude.ai calls it
 
 [log]                              # metadata only: tool, duration, exit, sizes, 8-char path hash
 enabled = true

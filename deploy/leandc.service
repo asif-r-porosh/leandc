@@ -1,14 +1,15 @@
-# VM: /etc/systemd/system/leandc.service  (edit User and paths; install first with ./install.sh as that user; then: systemctl daemon-reload; systemctl enable --now leandc)
+# Template. The README shows how to fill in the user and home (sed) and install it to /etc/systemd/system/leandc.service.
+# Install leandc first (./install.sh) as that user.
 [Unit]
 Description=leandc MCP server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=asif
-WorkingDirectory=/home/asif
-Environment=LEANDC_CONFIG=/home/asif/.config/leandc/config.toml
-ExecStart=/home/asif/.local/share/leandc/venv/bin/leandc serve
+User=youruser
+WorkingDirectory=/home/youruser
+Environment=LEANDC_CONFIG=/home/youruser/.config/leandc/config.toml
+ExecStart=/home/youruser/.local/share/leandc/venv/bin/leandc serve
 Restart=on-failure
 RestartSec=3
 # Do NOT set KillMode=process: leandc kills its own jobs on stop; stray children must not outlive the service.
