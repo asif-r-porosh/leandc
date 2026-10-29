@@ -1,4 +1,4 @@
-"""Real transports: stdio subprocess and streamable HTTP on localhost (D24, secret path)."""
+"""Real transports: stdio subprocess and streamable HTTP on localhost (secret path)."""
 import socket
 import subprocess
 import sys
@@ -106,7 +106,7 @@ def _post(port: int, path: str, host: str | None) -> int:
 
 def test_http_wrong_host_and_path(http_server):
     port, _ = http_server
-    assert _post(port, f"/{SECRET}/mcp", "evil.example") == 421  # D24
+    assert _post(port, f"/{SECRET}/mcp", "evil.example") == 421
     assert _post(port, "/wrong/mcp", None) == 404
 
 

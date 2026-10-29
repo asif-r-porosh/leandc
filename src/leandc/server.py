@@ -1,4 +1,4 @@
-"""Server wiring: five tools, one middleware, two entry points (D1, D3, D22-D30).
+"""Server wiring: five tools, one middleware, two entry points.
 
 No `from __future__ import annotations` here: the SDK builds each tool's input
 schema from the real annotations on the functions below.
@@ -40,7 +40,7 @@ MIN_SECRET_LEN = 24
 # ------------------------------------------------------------ descriptions ----
 
 def info_line(cfg: Config, facts: dict[str, str]) -> str:
-    """The one-line environment summary carried in the `run` description (D29)."""
+    """The one-line environment summary carried in the `run` description."""
     caps = cfg.caps
     bits = [f"leandc {__version__} target={cfg.target}", f"default cwd {cfg.default_cwd}"]
     if facts.get("bash"):
@@ -124,7 +124,7 @@ _VALIDATION = re.compile(r"\d+ validation errors? for ")
 
 
 def _one_line_validation(text: str, tool: str, valid: tuple[str, ...]) -> str:
-    """Turn a pydantic dump into `field: problem; field: problem` (D23)."""
+    """Turn a pydantic dump into `field: problem; field: problem`."""
     lines = text.splitlines()
     problems: list[str] = []
     for i, line in enumerate(lines):
@@ -137,7 +137,7 @@ def _one_line_validation(text: str, tool: str, valid: tuple[str, ...]) -> str:
 
 
 def _normalize(tool: str, result: Any, valid: tuple[str, ...]) -> Any:
-    """Make error results one clean accurate message (D23, D26)."""
+    """Make error results one clean accurate message."""
     if not _is_error(result):
         return result
     text = _result_text(result)

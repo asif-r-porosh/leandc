@@ -1,4 +1,4 @@
-"""Metadata-only usage log (D19, D12).
+"""Metadata-only usage log.
 
 Records: time, tool, duration, outcome, sizes, a short hash of the path, and for `run` the
 command names used with counts (e.g. {"ls":3,"grep":1}). Never records arguments, paths or

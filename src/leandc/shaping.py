@@ -1,6 +1,6 @@
-"""Output shaping (section 3.1): strip noise, collapse repeats, then cap by size.
+"""Output shaping: strip noise, collapse repeats, then cap by size.
 
-The server shapes by size, not by matching commands (D6): pipes, xargs and
+The server shapes by size, not by matching commands: pipes, xargs and
 `bash -c` hide the real command. Everything done here is declared in the result.
 """
 from __future__ import annotations

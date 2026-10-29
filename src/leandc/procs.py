@@ -1,4 +1,4 @@
-"""`run` and `job` tool logic (sections 3.1 and 3.2)."""
+"""`run` and `job` tool logic."""
 from __future__ import annotations
 
 import os

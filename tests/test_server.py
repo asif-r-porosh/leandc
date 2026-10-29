@@ -1,4 +1,4 @@
-"""End-to-end through a real MCP client (in-memory transport): tool set, D22/D23/D26/D29, usage log."""
+"""End-to-end through a real MCP client (in-memory transport): tool set, error messages, usage log."""
 import json
 from dataclasses import replace
 
@@ -43,7 +43,7 @@ async def test_tool_set_and_descriptions(client):
     tools = {t.name: t for t in (await client.list_tools()).tools}
     assert set(tools) == {"run", "job", "read", "write", "edit"}
     run_desc = tools["run"].description
-    assert "target=vm" in run_desc and "bash 5.2" in run_desc and "output cap 8000" in run_desc  # D29
+    assert "target=vm" in run_desc and "bash 5.2" in run_desc and "output cap 8000" in run_desc
     for t in tools.values():
         assert t.output_schema is None  # plain text results only
 
@@ -65,7 +65,7 @@ async def test_write_read_edit_roundtrip(client, cfg):
     assert "TWO" in text(await call(client, "read", path=p))
 
 
-async def test_unknown_parameter_rejected(client):  # D22
+async def test_unknown_parameter_rejected(client):
     res = await call(client, "run", cmd="echo hi", timout=5)
     assert res.is_error
     t = text(res)
@@ -73,7 +73,7 @@ async def test_unknown_parameter_rejected(client):  # D22
     assert "\n" not in t
 
 
-async def test_missing_required_is_one_line(client):  # D23
+async def test_missing_required_is_one_line(client):
     res = await call(client, "run")
     assert res.is_error
     t = text(res)
@@ -88,7 +88,7 @@ async def test_wrong_type_is_one_line(client):
     assert t.startswith("ERROR BAD_PARAM:") and "timeout" in t and "\n" not in t
 
 
-async def test_tool_error_text_reaches_model(client, cfg):  # D26
+async def test_tool_error_text_reaches_model(client, cfg):
     res = await call(client, "read", path=f"{cfg.default_cwd}/nope.txt")
     assert res.is_error
     t = text(res)
@@ -119,7 +119,7 @@ async def test_usage_log_is_metadata_only(client, cfg):
     rows = [json.loads(line) for line in raw.splitlines()]
     assert [r["tool"] for r in rows] == ["write", "run", "read"]
     assert rows[1]["exit"] == 0 and rows[1]["ok"] is True
-    assert rows[1]["cmds"] == {"echo": 1}  # N5: command names are counted, arguments never
+    assert rows[1]["cmds"] == {"echo": 1}  # command names are counted, arguments never
     assert rows[2]["ok"] is False and rows[2]["code"] == "NOT_FOUND"
     assert rows[0]["path"] and len(rows[0]["path"]) == 8
 

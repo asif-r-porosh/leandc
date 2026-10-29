@@ -1,4 +1,4 @@
-"""Command-name counts for the usage log (N5): names only, never arguments."""
+"""Command-name counts for the usage log: names only, never arguments."""
 import pytest
 
 from leandc.cmdnames import command_names

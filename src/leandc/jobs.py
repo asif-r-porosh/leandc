@@ -1,4 +1,4 @@
-"""Job manager (sections 3.1, 3.2; D7, D30).
+"""Job manager.
 
 Every command runs as a *job* owned by the server, never by the request that
 started it: a client that times out or disconnects cancels its request, and the
@@ -100,7 +100,7 @@ class Job:
     id: str
     cwd: str
     dir: Path
-    cmd_preview: str  # memory only; never written to disk (D12)
+    cmd_preview: str  # memory only; never written to disk
     started: float = field(default_factory=_now)
     status: str = "running"  # running | exited | killed
     exit_code: int | None = None
@@ -278,7 +278,7 @@ class JobManager:
             fail("DENIED", f"cannot execute in {cwd}", "Check directory permissions")
         self.jobs[job_id] = job
         _write_meta(directory, job.meta())
-        # Server-owned task: not a child of the request that called us (D30).
+        # Server-owned task: not a child of the request that called us.
         job.task = asyncio.create_task(self._pump(job))
         self._tasks.add(job.task)
         job.task.add_done_callback(self._tasks.discard)

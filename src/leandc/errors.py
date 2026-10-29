@@ -1,4 +1,4 @@
-"""One-line, accurate errors (D23, D26).
+"""One-line, accurate errors.
 
 Every failure a tool can anticipate is raised through `fail()`. The SDK hides the
 text of any other exception, so a bare exception would reach Claude as an opaque

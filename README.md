@@ -22,9 +22,11 @@ Against Desktop Commander 0.3.1, over 9 scripted tasks (3 runs each, all passed)
 Run this on every machine that will host leandc (your computer, the server, or both):
 
 ```
-git clone <repo-url> leandc && cd leandc
+git clone https://github.com/asif-r-porosh/leandc.git && cd leandc
 ./install.sh
 ```
+
+No git? Download the ZIP from the repository page (Code > Download ZIP), unzip it, and run `./install.sh` inside the folder.
 
 `install.sh` creates a private virtualenv in `~/.local/share/leandc/venv`, installs the pinned requirements and a copy of leandc (so the checkout can be moved or deleted), copies `config.example.toml` to `~/.config/leandc/config.toml` if you have no config yet (mode 600), runs the self-check, and prints the command to use. Re-run it to update. Options: `LEANDC_HOME` (install dir), `LEANDC_CONFIG` (config path), `LEANDC_PYTHON` (which interpreter).
 

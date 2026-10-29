@@ -140,7 +140,7 @@ async def test_run_long_returns_job_then_finishes(env):
 
 
 async def test_cancelled_request_does_not_kill_job(env):
-    """D30: a client timeout cancels the request; the command must keep running."""
+    """A client timeout cancels the request; the command must keep running."""
     cfg, mgr = env
     task = asyncio.create_task(run_command(cfg, mgr, build_env, "sleep 1; echo survived", timeout=30))
     await asyncio.sleep(0.3)

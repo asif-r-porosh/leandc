@@ -1,4 +1,4 @@
-"""read, write and edit (sections 3.3 to 3.5). All functions are synchronous and
+"""read, write and edit. All functions are synchronous and
 are meant to be called through `asyncio.to_thread` so the server loop never blocks.
 """
 from __future__ import annotations
