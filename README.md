@@ -58,7 +58,8 @@ d. runs the self-check and prints the command to use.
 ```
 * _Replace **USER** with the OS username._
 
-Quit and fully reopen the app (Cmd-Q, not just closing the window). Ask Claude to run `uname -a`; if the tools appear, it works.
+Quit and fully reopen the app (Cmd-Q, not just closing the window). Ask Claude to run `uname -a`; if the tools appear, it works.  
+
 4. On the remote Ubuntu server -
 a. use instruction 1 to install.
 b. create a hostname e.g. `leandc.example.com` pointing to the server's public IP. It must be DNS only. NB: `run` waits at most **120 seconds** and then returns a job id; any proxy or service in front of leandc must allow requests at least that long
