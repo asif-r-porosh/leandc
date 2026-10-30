@@ -40,11 +40,11 @@ cd leandc
 - `LEANDC_PYTHON` (which interpreter)
 
 
-> The Installation -
-a. creates a private virtualenv `~/.local/share/leandc/venv`
-b. installs the pinned requirements and a copy of leandc
-c. creates  `~/.config/leandc/config.toml`
-d. runs the self-check and prints the command to use.
+> The Installation -  
+a. creates a private virtualenv `~/.local/share/leandc/venv`  
+b. installs the pinned requirements and a copy of leandc  
+c. creates  `~/.config/leandc/config.toml`  
+d. runs the self-check and prints the command to use.  
 
 2. On macOS (local stdio): edit `~/.config/leandc/config.toml` to change default values; set `target = "mac"`, leave the `[http]` section
 3. In the Claude desktop app (Chat), click on the Claude menu (macOS top menu bar) → `Settings` → `Developer` → `Edit Config`. Locate the file `claude_desktop_config.json` and add/merge the following in the file
@@ -60,10 +60,10 @@ d. runs the self-check and prints the command to use.
 
 Quit and fully reopen the app (Cmd-Q, not just closing the window). Ask Claude to run `uname -a`; if the tools appear, it works.  
 
-4. On the remote Ubuntu server -
-a. use instruction 1 to install.
-b. create a hostname e.g. `leandc.example.com` pointing to the server's public IP. It must be DNS only. NB: `run` waits at most **120 seconds** and then returns a job id; any proxy or service in front of leandc must allow requests at least that long
-c. generate a secret with `~/.local/share/leandc/venv/bin/leandc secret`, then edit ~/.config/leandc/config.toml -
+4. On the remote Ubuntu server -  
+a. use instruction 1 to install.  
+b. create a hostname e.g. `leandc.example.com` pointing to the server's public IP. It must be DNS only. NB: `run` waits at most **120 seconds** and then returns a job id; any proxy or service in front of leandc must allow requests at least that long  
+c. generate a secret with `~/.local/share/leandc/venv/bin/leandc secret`, then edit ~/.config/leandc/config.toml -  
 ```bash
 target = "vm"
 
@@ -73,18 +73,29 @@ port = 8765
 path_secret = "<the_generated_secret>"
 allowed_hosts = ["leandc.example.com"]   # exactly the hostname Claude will call
 ```
-Keep the file at mode `600`. `leandc check --config ~/.config/leandc/config.toml` must pass.
-d. TLS proxy: reverse proxy host:port from nginx/caddy or any other alternative. for caddy, use `flush_interval -1`; reload; do not add a log directive for this site.
-e. run it by `~/.local/share/leandc/venv/bin/leandc serve`
+Keep the file at mode `600`. `leandc check --config ~/.config/leandc/config.toml` must pass.  
+d. TLS proxy: reverse proxy host:port from nginx/caddy or any other alternative. for caddy, use `flush_interval -1`; reload; do not add a log   directive for this site.  
+e. run it by `~/.local/share/leandc/venv/bin/leandc serve`  
 
-To make the service persistent, the supplied `systemd` unit can be used: [deploy/leandc.service](https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service). It should already be in `~/leandc/deploy/leandc.service` if `./manual-install.sh` was used. Then -
+To make the service persistent, use the supplied `systemd` unit, [deploy/leandc.service](https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service). Run the commands below from a folder that contains `deploy/leandc.service`:
+
+- **Installed from a clone** (`./manual-install.sh`): run them from the clone's root. The unit is already in its `deploy/` folder.  
+- **Installed with the `curl ... | bash` one-liner:** no clone is kept, so download the unit first:
+  ```bash
+  mkdir -p deploy && curl -fsSL -o deploy/leandc.service https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service
+  ```
+
+Then:  
 ```bash
-sed -e "s|/home/youruser|$HOME|g" -e "s|youruser|$(id -un)|g" deploy/leandc.service | sudo tee /etc/systemd/system/leandc.service >/dev/null
-sudo systemctl daemon-reload && sudo systemctl enable --now leandc
+sed -e "s|/home/youruser|$HOME|g" -e "s|youruser|$(id -un)|g" deploy/leandc.service > /tmp/leandc.service \
+ && sudo install -m 644 /tmp/leandc.service /etc/systemd/system/leandc.service \
+ && rm /tmp/leandc.service \
+ && sudo systemctl daemon-reload && sudo systemctl enable --now leandc
 systemctl status leandc --no-pager | head -5
 ```
+* _The `sed` fills in your username and home directory.
 
-It restarts on failure and starts at boot. Logs: `journalctl -u leandc`.
+It restarts on failure and starts at boot. Logs: `journalctl -u leandc`.  
 Leave `KillMode` at its default (`control-group`): `leandc` kills its own jobs on stop, and stray children must not outlive the service.
 
 5. In claude.ai, Settings → Connectors → Add custom connector, URL `https://leandc.example.com/<the_generated_secret>/mcp`; leave OAuth empty; ask Claude to run hostname.
@@ -102,10 +113,10 @@ The only protection is one long secret in the URL path plus the allowed-hosts ch
 **Remote reach.** leandc does not inspect or block commands. `run` can use `ssh`, `scp`, `rsync`, `sshpass` or any other tool to reach other hosts, with whatever keys, agent or credentials that user has. On a machine holding SSH keys or an ssh agent, a leaked connector URL or a prompt injection therefore extends to every host those keys can reach. On a server, use a dedicated user with no private keys and no agent forwarding, and keep it off networks you do not want it to reach. On a Mac, review any `ssh`, `scp` or `rsync` call before approving it in the app. leandc has no built-in approval prompt for these commands.
 
 ## Layout
-Program location: `~/.local/share/leandc`
-Config in `~/.config/leandc`
-Logs and job buffers in `~/.local/state/leandc`
-MCP clients run `~/.local/share/leandc/venv/bin/leandc`
+Program location: `~/.local/share/leandc`  
+Config in `~/.config/leandc`  
+Logs and job buffers in `~/.local/state/leandc`  
+MCP clients run `~/.local/share/leandc/venv/bin/leandc`  
 
 ## Commands
 - `~/.local/share/leandc/venv/bin/leandc check`: self-check; the response ends with `self-check passed` if the check passes.
@@ -131,7 +142,6 @@ The usage log (`~/.local/state/leandc/usage.jsonl`, rotated by size) holds metad
 
 ## Uninstall
 
-
 Delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. On a server first run `sudo systemctl disable --now leandc && sudo rm /etc/systemd/system/leandc.service` (if `systemd` unit is used).
 
 ## Troubleshooting
@@ -146,7 +156,7 @@ Delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. 
 
 ```
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -e '.[dev]'
-.venv/bin/python -m pytest      # about 35 s
+.venv/bin/python -m pytest  # about 35 s
 ```
 
 Tests need bash and `pgrep`. The MCP SDK is pinned (`mcp==2.3.0`) and the middleware API it relies on is provisional, so re-run the suite after any SDK bump, then regenerate `requirements.txt`.
