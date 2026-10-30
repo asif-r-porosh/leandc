@@ -1,93 +1,114 @@
-# leandc
+# LeanDC - Lean Desktop Commander MCP
 
-A lean MCP server that gives Claude five tools (`run`, `job`, `read`, `write`, `edit`) to run commands and work with files on a machine you control. The tool definitions are small and the output is trimmed, so a session spends fewer tokens than with the larger tool sets.
+It gives AI chat access to the computer to read and write files, run commands, view results, and continue -- all dev tools in one chat. A connector also enables remote-machine work.
 
-Two ways to run it, from one codebase:
+Tested with the Claude desktop app (**Chat**, not Claude Code), macOS (Apple Silicon) and Ubuntu, this tool is inspired by [Desktop Commander MCP](https://github.com/wonderwhy-er/DesktopCommanderMCP) but offers a leaner toolset for lazy programming. Compact definitions and trimmed output reduce token use per session.
 
-- **Local (stdio):** the Claude desktop app, or any MCP client, launches it on your own computer. Nothing listens on the network.
-- **Remote (HTTPS):** it runs as a service on a Linux server you control, behind a TLS reverse proxy, and you add it to claude.ai as a custom connector.
+Five tools: **`Run` | `Job` | `Read` | `Write` | `Edit`**
+
+Two scenarios covered:
+- **Local (stdio)**: use it from the Claude desktop app (Chat) on macOS to use the tools on that Mac.
+- **Remote (HTTPS)**: run the MCP as a web service on a remote Ubuntu machine; ask Claude in the Chat app to use the tools on the remote machine using a connector. (Needs a TLS reverse proxy on Ubuntu)
+
 
 ## Why
 
-Against Desktop Commander 0.3.1, over 9 scripted tasks (3 runs each, all passed), the weighted total was 70% fewer tokens and 26% lower cost with a warm prompt cache. Most of the saving is the smaller tool schema (about 2,100 tokens against about 13,500 per session) plus smaller tool results. The tokens Claude writes (file content, commands) are unchanged. Method, caveats and how to rerun: [`bench/`](bench/README.md).
+Against Desktop Commander 0.3.1, over 9 scripted tasks (3 runs each, all passed), the weighted total was 70% fewer tokens and 26% lower cost with a warm prompt cache. Most of the savings come from the smaller tool schema (about 2,100 tokens vs. about 13,500 per session) and smaller tool results. The tokens Claude writes (file content, commands) are unchanged. Method, caveats, and how to rerun: [bench/](https://github.com/asif-r-porosh/leandc/blob/main/bench/README.md)
 
 ## Requirements
+- Python 3.12 or newer with `venv` and `pip`
+- Bash
+- For remote: Ubuntu server with public DNS name, ports 80 and 443 open, and a TLS reverse proxy
 
-- Python 3.12 or newer with `venv` and `pip`, and `bash`. leandc uses only the commands the OS ships (`ls`, `sed`, `grep`, ...) and installs nothing else; Claude is told the OS and userland flavor (macOS BSD or Linux GNU) so it writes matching commands.
-- Tested on macOS (Apple silicon) and Ubuntu 24.04. Ubuntu: `sudo apt install python3 python3-venv`.
-- Remote only: a Linux server with a public DNS name, ports 80 and 443 open, and a TLS reverse proxy (the example uses Caddy).
-
-## Install
-
-Run this on every machine that will host leandc (your computer, the server, or both):
-
+## Setup
+1. Run
+```bash
+curl -fsSL https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/install.sh | bash
 ```
-git clone https://github.com/asif-r-porosh/leandc.git && cd leandc
-./install.sh
+Or, clone/download [repo](https://github.com/asif-r-porosh/leandc), `cd` into `leandc` and `./manual-install.sh`
+
+```bash
+git clone https://github.com/asif-r-porosh/leandc.git
+cd leandc
+./manual-install.sh
 ```
 
-No git? Download the ZIP from the repository page (Code > Download ZIP), unzip it, and run `./install.sh` inside the folder.
+**Override default installation (options)**
 
-`install.sh` creates a private virtualenv in `~/.local/share/leandc/venv`, installs the pinned requirements and a copy of leandc (so the checkout can be moved or deleted), copies `config.example.toml` to `~/.config/leandc/config.toml` if you have no config yet (mode 600), runs the self-check, and prints the command to use. Re-run it to update. Options: `LEANDC_HOME` (install dir), `LEANDC_CONFIG` (config path), `LEANDC_PYTHON` (which interpreter).
+- `LEANDC_HOME` (install dir)
+- `LEANDC_CONFIG` (config path)
+- `LEANDC_PYTHON` (which interpreter)
 
-Layout: program in `~/.local/share/leandc`, config in `~/.config/leandc`, logs and job buffers in `~/.local/state/leandc`. MCP clients just run the absolute path of `~/.local/share/leandc/venv/bin/leandc`; there is no standard install location beyond that.
 
-`leandc check` runs the self-check and must end with `self-check passed`. `serve` runs the same check and refuses to start on a FAIL.
+> The Installation -
+a. creates a private virtualenv `~/.local/share/leandc/venv`
+b. installs the pinned requirements and a copy of leandc
+c. creates  `~/.config/leandc/config.toml`
+d. runs the self-check and prints the command to use.
 
-## Local setup (Claude desktop)
-
-1. Install as above. In `~/.config/leandc/config.toml` set `target = "mac"` (stdio only; named for macOS, the tested local case) and leave the `[http]` section alone.
-2. Add leandc to the Claude desktop app's config, `~/Library/Application Support/Claude/claude_desktop_config.json`. Merge this into the `mcpServers` object, with your own home directory written out in full:
-
+2. On macOS (local stdio): edit `~/.config/leandc/config.toml` to change default values; set `target = "mac"`, leave the `[http]` section
+3. In the Claude desktop app (Chat), click on the Claude menu (macOS top menu bar) → `Settings` → `Developer` → `Edit Config`. Locate the file `claude_desktop_config.json` and add/merge the following in the file
 ```json
-{
-  "mcpServers": {
+"mcpServers": {
     "leandc": {
-      "command": "/Users/YOU/.local/share/leandc/venv/bin/leandc",
-      "args": ["serve", "--config", "/Users/YOU/.config/leandc/config.toml"]
+      "command": "/Users/USER/.local/share/leandc/venv/bin/leandc",
+      "args": ["serve", "--config", "/Users/USER/.config/leandc/config.toml"]
     }
   }
-}
+```
+* _Replace **USER** with the OS username._
+
+Quit and fully reopen the app (Cmd-Q, not just closing the window). Ask Claude to run `uname -a`; if the tools appear, it works.
+4. On the remote Ubuntu server -
+a. use instruction 1 to install.
+b. create a hostname e.g. `leandc.example.com` pointing to the server's public IP. It must be DNS only. NB: `run` waits at most **120 seconds** and then returns a job id; any proxy or service in front of leandc must allow requests at least that long
+c. generate a secret with `~/.local/share/leandc/venv/bin/leandc secret`, then edit ~/.config/leandc/config.toml -
+```bash
+target = "vm"
+
+[http]
+host = "127.0.0.1"
+port = 8765
+path_secret = "<the_generated_secret>"
+allowed_hosts = ["leandc.example.com"]   # exactly the hostname Claude will call
+```
+Keep the file at mode `600`. `leandc check --config ~/.config/leandc/config.toml` must pass.
+d. TLS proxy: reverse proxy host:port from nginx/caddy or any other alternative. for caddy, use `flush_interval -1`; reload; do not add a log directive for this site.
+e. run it by `~/.local/share/leandc/venv/bin/leandc serve`
+
+To make the service persistent, the supplied `systemd` unit can be used: [deploy/leandc.service](https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service). It should already be in `~/leandc/deploy/leandc.service` if `./manual-install.sh` was used. Then -
+```bash
+sed -e "s|/home/youruser|$HOME|g" -e "s|youruser|$(id -un)|g" deploy/leandc.service | sudo tee /etc/systemd/system/leandc.service >/dev/null
+sudo systemctl daemon-reload && sudo systemctl enable --now leandc
+systemctl status leandc --no-pager | head -5
 ```
 
-3. Quit and reopen the app. Ask Claude to run `uname -a`; if the tools appear, it works.
+It restarts on failure and starts at boot. Logs: `journalctl -u leandc`.
+Leave `KillMode` at its default (`control-group`): `leandc` kills its own jobs on stop, and stray children must not outlive the service.
 
-An app launched from the Dock has a minimal PATH, so Claude sees the stock macOS tools (BSD userland, bash 3.2); the `run` description says so. Optional extras such as `rg`, `fd`, `jq` are listed only if they are on that PATH.
+5. In claude.ai, Settings → Connectors → Add custom connector, URL `https://leandc.example.com/<the_generated_secret>/mcp`; leave OAuth empty; ask Claude to run hostname.
+* _<the_generated_secret> from 4.c_
 
-Other MCP clients that start stdio servers work the same way. For Claude Code: `claude mcp add leandc -- ~/.local/share/leandc/venv/bin/leandc serve --config ~/.config/leandc/config.toml`.
 
-## Remote setup (a Linux server, HTTPS)
+Checking the endpoint from the server (use the real secret and hostname): a valid MCP request to `/<the_generated_secret>/mcp` answers 200; a bare GET to it answers 400 (it needs a real MCP request); a wrong path answers 404; a Host header not in `allowed_hosts` answers `421`.
 
-1. **Install** on the server, as the user that will run the service.
-2. **DNS:** create a one-level hostname such as `leandc.example.com` pointing at the server's public IP (check the IP on the server itself first). It must be **DNS only**. If you use Cloudflare, that means grey cloud: the orange proxy cuts requests at about 100 seconds, and leandc allows 120-second calls.
-3. **Config:** generate a secret with `~/.local/share/leandc/venv/bin/leandc secret`, then edit `~/.config/leandc/config.toml`:
 
-   ```toml
-   target = "vm"
 
-   [http]
-   host = "127.0.0.1"
-   port = 8765
-   path_secret = "<the generated secret>"
-   allowed_hosts = ["leandc.example.com"]   # exactly the hostname Claude will call
-   ```
+## Security.
 
-   Keep the file at mode 600. `leandc check --config ~/.config/leandc/config.toml` must pass.
-4. **TLS proxy:** add the site from `deploy/Caddyfile.snippet` to your Caddyfile (hostname, `reverse_proxy 127.0.0.1:8765`, `flush_interval -1`) and reload Caddy. Do not add a `log` directive for this site: the secret is part of the URL path.
-5. **Service:** `deploy/leandc.service` is a template with `youruser` placeholders. Install it with your user and home filled in, then start it:
+The only protection is one long secret in the URL path plus the allowed-hosts check. Anyone who learns the URL gets a shell as that user on that machine, so use a disposable server that holds no production secrets, and treat the connector URL like a password. leandc's own HTTP access log is off, so the secret is not written to the service log. To rotate it: leandc secret, edit the config, sudo systemctl restart leandc, update the connector URL.
 
-   ```
-   sed -e "s|/home/youruser|$HOME|g" -e "s|youruser|$(id -un)|g" deploy/leandc.service | sudo tee /etc/systemd/system/leandc.service >/dev/null
-   sudo systemctl daemon-reload && sudo systemctl enable --now leandc
-   systemctl status leandc --no-pager | head -5
-   ```
+**Remote reach.** leandc does not inspect or block commands. `run` can use `ssh`, `scp`, `rsync`, `sshpass` or any other tool to reach other hosts, with whatever keys, agent or credentials that user has. On a machine holding SSH keys or an ssh agent, a leaked connector URL or a prompt injection therefore extends to every host those keys can reach. On a server, use a dedicated user with no private keys and no agent forwarding, and keep it off networks you do not want it to reach. On a Mac, review any `ssh`, `scp` or `rsync` call before approving it in the app. leandc has no built-in approval prompt for these commands.
 
-   It restarts on failure and starts at boot. Logs: `journalctl -u leandc`. Leave `KillMode` at its default (`control-group`): leandc kills its own jobs on stop, and stray children must not outlive the service.
-6. **Connector:** in claude.ai, Settings > Connectors > Add custom connector, URL `https://leandc.example.com/<secret>/mcp`, leave OAuth empty. Ask Claude to run `hostname`.
+## Layout
+Program location: `~/.local/share/leandc`
+Config in `~/.config/leandc`
+Logs and job buffers in `~/.local/state/leandc`
+MCP clients run `~/.local/share/leandc/venv/bin/leandc`
 
-Checking the endpoint from the server (use the real secret and hostname): a valid MCP request to `/<secret>/mcp` answers 200; a bare `GET` to it answers 400 (it needs a real MCP request); a wrong path answers 404; a `Host` header not in `allowed_hosts` answers 421.
-
-**Security.** The only protection is one long secret in the URL path plus the allowed-hosts check. Anyone who learns the URL gets a shell as that user on that machine, so use a disposable server that holds no production secrets, and treat the connector URL like a password. leandc's own HTTP access log is off, so the secret is not written to the service log. To rotate it: `leandc secret`, edit the config, `sudo systemctl restart leandc`, update the connector URL.
+## Commands
+- `~/.local/share/leandc/venv/bin/leandc check`: self-check; the response ends with `self-check passed` if the check passes.
+- `~/.local/share/leandc/venv/bin/leandc serve`: to serve on HTTPS
 
 ## Tools
 
@@ -107,11 +128,10 @@ The usage log (`~/.local/state/leandc/usage.jsonl`, rotated by size) holds metad
 
 `config.example.toml` lists every key with its default. Unknown keys are rejected at startup, and no tool can change the config file. `LEANDC_CONFIG` or `--config` selects the file; `LEANDC_PATH_SECRET` can supply the secret instead of the file. The `[caps]` section holds the output, read, timeout and buffer limits.
 
-## Update and uninstall
+## Uninstall
 
-Update: `git pull && ./install.sh`, then restart (`sudo systemctl restart leandc` on a server; quit and reopen the Claude desktop app locally).
 
-Uninstall: delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. On a server first run `sudo systemctl disable --now leandc && sudo rm /etc/systemd/system/leandc.service`.
+Delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. On a server first run `sudo systemctl disable --now leandc && sudo rm /etc/systemd/system/leandc.service` (if `systemd` unit is used).
 
 ## Troubleshooting
 
@@ -129,3 +149,6 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -e '.[dev]'
 ```
 
 Tests need bash and `pgrep`. The MCP SDK is pinned (`mcp==2.3.0`) and the middleware API it relies on is provisional, so re-run the suite after any SDK bump, then regenerate `requirements.txt`.
+
+---
+RnD: Used Claude Sonnet 5.5
