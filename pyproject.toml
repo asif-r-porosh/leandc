@@ -1,6 +1,7 @@
 [project]
 name = "leandc"
 version = "0.1.0"
+license = "MIT"
 description = "Lean desktop commander: shell and file tools for Claude over MCP"
 requires-python = ">=3.12"
 dependencies = ["mcp==2.3.0"]
