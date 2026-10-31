@@ -62,7 +62,7 @@ The benchmark was run with Claude Code, not Claude Chat. The results reflect the
    - creates `~/.config/leandc/config.toml`
    - runs the self-check and prints the command to use.
 
-2. On macOS (local stdio): edit `~/.config/leandc/config.toml` to change default values; set `target = "mac"`, leave the `[http]` section
+2. On macOS (local stdio): edit `~/.config/leandc/config.toml` to change default values; set `target = "mac"`; leave the `[http]` section unchanged, because stdio does not use the section
 
 3. In the Claude desktop app (Chat), click on the Claude menu (macOS top menu bar) → `Settings` → `Developer` → `Edit Config`. Locate the file `claude_desktop_config.json` and add/merge the following in the file
 
@@ -155,7 +155,7 @@ The only protection is one long secret in the URL path plus the allowed-hosts ch
 ## Commands
 
 - `~/.local/share/leandc/venv/bin/leandc check`: self-check; the response ends with `self-check passed` if the check passes.
-- `~/.local/share/leandc/venv/bin/leandc serve`: to serve on HTTPS
+- `~/.local/share/leandc/venv/bin/leandc serve`: start the server; stdio when `target = "mac"`, HTTP behind the TLS proxy when `target = "vm"` (`--transport stdio` or `--transport http` overrides the choice)
 
 ## Tools
 
