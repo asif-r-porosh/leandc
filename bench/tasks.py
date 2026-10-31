@@ -2,6 +2,7 @@
 
 Weights are a documented assumption, loosely from the DC history mix (read_file 51% of calls,
 start_process 30%, edit_block 10%, write_file 5%); sessions carry the multi-step share.
+Tasks marked stress=True have weight 0: they probe leandc's smaller caps and are reported separately.
 """
 import ast, hashlib, os, re, subprocess
 from pathlib import Path
@@ -37,8 +38,8 @@ def v_funcs(work, ans):
 
 
 def v_where(work, ans):
-    got = _last(ans, "ANSWER:") or ""
-    return "cmdnames.py" in got and re.search(r"\b20\b", got) is not None
+    got = (_last(ans, "ANSWER:") or "").replace("`", "").strip()
+    return re.fullmatch(r"\S*cmdnames\.py\s+20", got) is not None
 
 
 def v_table(work, ans):
@@ -58,7 +59,7 @@ def v_maxnames(work, ans):
 def v_suite(work, ans):
     # One project timing test (event-loop gap) is flaky on a busy machine; a correct report of 130 plus the failure counts as a pass.
     n = _last(ans, "PASSED:")
-    return n == "131" or (n == "130" and re.search(r"fail", ans, re.I) is not None)
+    return n == "131" or (n == "130" and re.search(r"\b1 (test )?(failed|failure)", ans, re.I) is not None)
 
 
 def v_lines(work, ans):
@@ -89,6 +90,42 @@ def v_conv(work, ans):
     r = subprocess.run([str(PY), "-c", "from leandc.cmdnames import command_names as c; print(c('sudo apt update'), c('doas ls'), c('nice make'))"],
                        cwd=work, env={"PYTHONPATH": "src", "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
     return r.stdout.strip() == "{'apt': 1} {'ls': 1} {'make': 1}" and _pytest(work, "tests/test_cmdnames.py")
+
+
+# ---- stress tasks (weight 0, reported separately): do leandc's smaller caps cost extra calls? --------------
+def gen_bigmod(work):
+    """A ~1,560-line Python module with 120 functions: reading it completely takes several reads under a line cap."""
+    d = work / "data"
+    d.mkdir(exist_ok=True)
+    out = ['"""Generated module for the benchmark."""', ""]
+    for n in range(120):
+        h = hashlib.sha1(f"fn-{n}".encode()).hexdigest()[:6]
+        out += [f"def handler_{h}(value, scale={n + 1}):", f'    """Handler number {n}."""', "    total = 0", "    for i in range(scale):",
+                "        if i % 2 == 0:", "            total += value * i", "        else:", "            total -= i", "    if total < 0:",
+                "        total = -total", f"    return total + {n}", "", ""]
+    (d / "bigmod.py").write_text("\n".join(out))
+
+
+def v_bigmod(work, ans):
+    got = _last(ans, "FUNCS:")
+    want = {n.name for n in ast.walk(ast.parse((work / "data/bigmod.py").read_text())) if isinstance(n, ast.FunctionDef)}
+    return got is not None and {x.strip().strip("`()") for x in got.split(",") if x.strip()} == want
+
+
+def gen_oddline(work):
+    """A 3,000-line log where one line breaks the pattern; it has no 'ERROR' keyword to search for."""
+    d = work / "data"
+    d.mkdir(exist_ok=True)
+    (d / "gen.py").write_text(
+        "for n in range(1, 3001):\n"
+        "    if n == 1742:\n"
+        "        print('warn step 1742 code=E7731 disk quota exceeded')\n"
+        "    else:\n"
+        "        print(f'ok step {n:04d} elapsed={n * 3}ms')\n")
+
+
+def v_oddline(work, ans):
+    return _last(ans, "CODE:") == "E7731"
 
 
 CONV = [
@@ -126,4 +163,10 @@ TASKS = [
          prompt="In {work}, make the command-name counter treat `sudo` as a prefix: `sudo apt update` must count `apt`, not `sudo`. "
                 "Add a test case for it in tests/test_cmdnames.py, then run: " + TESTCMD + " and confirm it passes."),
     dict(id="t9-long-conversation", weight=0.15, verify=v_conv, turns=CONV),
+    dict(id="t10-big-file", weight=0, stress=True, verify=v_bigmod, setup=gen_bigmod,
+         prompt="Read {work}/data/bigmod.py completely (it is long). List the names of every function defined in it. "
+                "Put them comma-separated on the last line of your answer, prefixed with 'FUNCS:'."),
+    dict(id="t11-odd-line", weight=0, stress=True, verify=v_oddline, setup=gen_oddline,
+         prompt="Run: cd {work} && " + str(PY) + " data/gen.py  It prints a long log in which exactly one line does not follow the pattern of the others. "
+                "Tell me the code on that line. Last line of your answer: 'CODE: <code>'."),
 ]
