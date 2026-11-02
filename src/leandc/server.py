@@ -20,7 +20,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.exceptions import MCPError
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
 from . import __version__
 from .cmdnames import command_names
@@ -234,7 +234,8 @@ def build_server(cfg: Config, facts: dict[str, str] | None = None) -> App:
 
     server = MCPServer("leandc", lifespan=lifespan)
 
-    @server.tool(name="run", description=describe_run(cfg, facts), structured_output=False)
+    @server.tool(name="run", description=describe_run(cfg, facts), structured_output=False,
+                 annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True))
     async def run(
         cmd: str,
         cwd: str | None = None,
@@ -244,7 +245,8 @@ def build_server(cfg: Config, facts: dict[str, str] | None = None) -> App:
     ) -> str:
         return await run_command(cfg, jobs, build_env, cmd, cwd, env, timeout, max_chars)
 
-    @server.tool(name="job", description=DESC_JOB, structured_output=False)
+    @server.tool(name="job", description=DESC_JOB, structured_output=False,
+                 annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
     async def job(
         id: str | None = None,
         action: str | None = None,
@@ -256,15 +258,18 @@ def build_server(cfg: Config, facts: dict[str, str] | None = None) -> App:
     ) -> str:
         return await job_command(cfg, jobs, id, action, offset, limit, tail, grep, wait)
 
-    @server.tool(name="read", description=DESC_READ, structured_output=False)
+    @server.tool(name="read", description=DESC_READ, structured_output=False,
+                 annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False))
     async def read(path: str, offset: int | None = None, limit: int | None = None) -> str:
         return await asyncio.to_thread(read_file, cfg, path, offset, limit)
 
-    @server.tool(name="write", description=DESC_WRITE, structured_output=False)
+    @server.tool(name="write", description=DESC_WRITE, structured_output=False,
+                 annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
     async def write(path: str, content: str, mode: str | None = None) -> str:
         return await asyncio.to_thread(write_file, cfg, path, content, mode)
 
-    @server.tool(name="edit", description=DESC_EDIT, structured_output=False)
+    @server.tool(name="edit", description=DESC_EDIT, structured_output=False,
+                 annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False))
     async def edit(path: str, old: str, new: str, replace_all: bool = False) -> str:
         return await asyncio.to_thread(edit_file, cfg, path, old, new, replace_all)
 
