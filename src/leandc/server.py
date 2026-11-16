@@ -280,19 +280,24 @@ def build_server(cfg: Config, facts: dict[str, str] | None = None) -> App:
 
 # ------------------------------------------------------------------ entry ----
 
-def _http_settings(cfg: Config) -> tuple[str, TransportSecuritySettings]:
-    import os
-
-    secret = os.environ.get("LEANDC_PATH_SECRET") or cfg.http.path_secret
+def check_http(secret: str, allowed_hosts: tuple[str, ...]) -> None:
+    """Raise ConfigError when the HTTP settings could not start a server."""
     if len(secret) < MIN_SECRET_LEN or "/" in secret:
         raise ConfigError(
             f"http.path_secret must be at least {MIN_SECRET_LEN} characters without '/'; generate one with: leandc secret"
         )
+    if not allowed_hosts:
+        raise ConfigError("http.allowed_hosts is empty: list the public hostname claude.ai will call")
+
+
+def _http_settings(cfg: Config) -> tuple[str, TransportSecuritySettings]:
+    import os
+
+    secret = os.environ.get("LEANDC_PATH_SECRET") or cfg.http.path_secret
+    check_http(secret, cfg.http.allowed_hosts)
     hosts: list[str] = []
     for h in cfg.http.allowed_hosts:
         hosts += [h, f"{h}:443"]
-    if not hosts:
-        raise ConfigError("http.allowed_hosts is empty: list the public hostname claude.ai will call")
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=hosts,
@@ -338,6 +343,12 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--ignore-check", action="store_true", help="start even if the self-check fails")
     sub.add_parser("secret", help="print a new random URL path secret")
     sub.add_parser("version", help="print the version")
+    p = sub.add_parser("setup", help="create or edit the service config in an editor (Linux, needs sudo)")
+    p.add_argument("--show", action="store_true", help="print the service config with the secret hidden")
+    p = sub.add_parser("start", help="start the service now and at every boot (Linux, needs sudo)")
+    p.add_argument("username", nargs="?", help="run as this user (default: the user who ran sudo)")
+    sub.add_parser("stop", help="stop the service and disable it at boot (Linux, needs sudo)")
+    sub.add_parser("status", help="show the service state")
     args = ap.parse_args(argv)
 
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -347,6 +358,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "secret":
         print(secrets.token_urlsafe(32))
         return 0
+    if args.cmd in ("setup", "start", "stop", "status"):
+        from . import service
+
+        return service.run_command(args)
     try:
         cfg = load_config(args.config)
     except ConfigError as exc:

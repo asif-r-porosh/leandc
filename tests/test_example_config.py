@@ -4,10 +4,11 @@ from pathlib import Path
 from leandc.config import load_config
 
 ROOT = Path(__file__).resolve().parent.parent
+EXAMPLE = ROOT / "src" / "leandc" / "config.example.toml"   # shipped inside the package
 
 
 def test_example_config_loads():
-    cfg = load_config(ROOT / "config.example.toml")
+    cfg = load_config(EXAMPLE)
     assert cfg.transport == "http" and cfg.http.port == 8765 and cfg.http.allowed_hosts == ("leandc.example.com",)
     assert cfg.caps.run_default_chars == 8000
     assert cfg.required_commands == ("bash",)

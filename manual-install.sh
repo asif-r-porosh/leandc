@@ -26,7 +26,7 @@ fi
 
 if [ ! -e "$CONFIG" ]; then
   mkdir -p "$(dirname "$CONFIG")"
-  cp "$HERE/config.example.toml" "$CONFIG"
+  cp "$HERE/src/leandc/config.example.toml" "$CONFIG"
   chmod 600 "$CONFIG"
   echo "install: wrote $CONFIG from the example; edit transport and [http] before serving"
 fi

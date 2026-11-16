@@ -39,7 +39,25 @@ The benchmark was run with Claude Code, not Claude Chat. The results reflect the
 pipx install git+https://github.com/asif-r-porosh/leandc
 ```
 
-The command installs two programs: `leandc` (the server) and `leandc-cli` (the [client](clients/leandc-cli/README.md)). Python 3.12 or newer is required. A pipx install creates no config file. Copy `config.example.toml` to `~/.config/leandc/config.toml` and edit as in Setup step 2. In the desktop-app entry (Setup step 3), `command` is the path printed by `which leandc`.
+The command installs two programs: `leandc` (the server) and `leandc-cli` (the [client](clients/leandc-cli/README.md)). Python 3.12 or newer is required. A plain pipx install creates no config file. Copy `src/leandc/config.example.toml` to `~/.config/leandc/config.toml` and edit as in Setup step 2. In the desktop-app entry (Setup step 3), `command` is the path printed by `which leandc`.
+
+### As a service on Linux (systemd)
+
+The service commands run the program as root, so the install must be for all users:
+
+```bash
+sudo pipx install --global git+https://github.com/asif-r-porosh/leandc
+sudo leandc setup      # edits the config in an editor; a fresh secret is already filled in
+sudo leandc start      # runs as the sudo user; `sudo leandc start alice` picks another user
+leandc status
+sudo leandc stop       # stops now and at boot
+```
+
+- The config is `/etc/leandc/config.toml`, owned by root. The runner can read the config and cannot change the file.
+- `setup` opens `$VISUAL`, `$EDITOR`, nano or vi, checks the file on save and installs only a valid one. The HTTP settings need `allowed_hosts` set to the public hostname. `setup --show` prints the config with the secret hidden.
+- `start` and `stop` last across reboots. The unit file is `/etc/systemd/system/leandc.service`.
+- `status` needs no sudo. With sudo, the output adds the transport and port.
+- Removal by hand: `sudo leandc stop`, delete the unit file and `/etc/leandc`, then `sudo groupdel leandc`.
 
 ## Setup
 
@@ -181,7 +199,7 @@ The usage log (`~/.local/state/leandc/usage.jsonl`, rotated by size) holds metad
 
 ## Configuration
 
-`config.example.toml` lists every key with the default. Unknown keys are rejected at startup, and no tool can change the config file. `LEANDC_CONFIG` or `--config` selects the file; `LEANDC_PATH_SECRET` can supply the secret instead of the file. The `[caps]` section holds the output, read, timeout and buffer limits.
+`src/leandc/config.example.toml` lists every key with the default. Unknown keys are rejected at startup, and no tool can change the config file. `LEANDC_CONFIG` or `--config` selects the file; `LEANDC_PATH_SECRET` can supply the secret instead of the file. The `[caps]` section holds the output, read, timeout and buffer limits.
 
 ## Uninstall
 
