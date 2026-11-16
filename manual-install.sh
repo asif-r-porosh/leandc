@@ -35,4 +35,4 @@ BIN="$HOME_DIR/venv/bin/leandc"
 "$BIN" check --config "$CONFIG" || true
 echo
 echo "installed: $BIN"
-echo "Claude desktop (Mac): command \"$BIN\", args [\"serve\", \"--config\", \"$CONFIG\"]"
+echo "Claude desktop (Mac): command \"$BIN\", args [\"serve\", \"--config\", \"$CONFIG\", \"--transport\", \"stdio\"]"

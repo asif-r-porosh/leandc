@@ -70,7 +70,7 @@ The benchmark was run with Claude Code, not Claude Chat. The results reflect the
    "mcpServers": {
        "leandc": {
          "command": "/Users/USER/.local/share/leandc/venv/bin/leandc",
-         "args": ["serve", "--config", "/Users/USER/.config/leandc/config.toml"]
+         "args": ["serve", "--config", "/Users/USER/.config/leandc/config.toml", "--transport", "stdio"]
        }
      }
    ```
