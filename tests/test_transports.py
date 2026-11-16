@@ -143,3 +143,31 @@ async def test_http_log_never_contains_secret(http_server):
     err = proc.communicate(timeout=10)[0]
     assert SECRET not in err and "listening" in err
     assert "POST /" not in err, "access log must stay off (it would print the secret path)"
+
+
+def test_http_stop_wait_is_bounded_below_the_unit_limit(tmp_path, monkeypatch):
+    """Open connections get a few seconds at stop, never the whole systemd stop window (15 s)."""
+    import uvicorn
+    from leandc import server, service
+    from leandc.config import load_config
+
+    seen = {}
+
+    class FakeServer:
+        def __init__(self, config):
+            seen["config"] = config
+
+        async def serve(self):
+            return None
+
+    monkeypatch.setattr(uvicorn, "Server", FakeServer)
+    port = free_port()
+    cfg_path = write_config(
+        tmp_path,
+        f'transport = "http"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
+    )
+    assert server.serve(load_config(cfg_path), "http") == 0
+    wait = seen["config"].timeout_graceful_shutdown
+    assert wait == server.GRACEFUL_STOP_SECONDS
+    limit = int(service.UNIT.split("TimeoutStopSec=")[1].split()[0])
+    assert 0 < wait < limit

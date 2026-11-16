@@ -306,6 +306,9 @@ def _http_settings(cfg: Config) -> tuple[str, TransportSecuritySettings]:
     return secret, security
 
 
+GRACEFUL_STOP_SECONDS = 3  # must stay well under TimeoutStopSec (15 s) in the systemd unit
+
+
 def serve(cfg: Config, transport: str, ignore_check: bool = False) -> int:
     report = run_check(cfg)
     print(report.render(), file=sys.stderr)
@@ -327,7 +330,16 @@ def serve(cfg: Config, transport: str, ignore_check: bool = False) -> int:
         transport_security=security,
         host=cfg.http.host,
     )
-    config = uvicorn.Config(asgi, host=cfg.http.host, port=cfg.http.port, log_level="info", access_log=False)
+    # A held-open connection (a claude.ai event stream behind a proxy) must not stall a stop: systemd allows
+    # 15 s, then kills the process and leaves the unit "failed". Give open requests a few seconds, then cancel them.
+    config = uvicorn.Config(
+        asgi,
+        host=cfg.http.host,
+        port=cfg.http.port,
+        log_level="info",
+        access_log=False,
+        timeout_graceful_shutdown=GRACEFUL_STOP_SECONDS,
+    )
     asyncio.run(uvicorn.Server(config).serve())
     return 0
 
