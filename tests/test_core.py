@@ -105,12 +105,12 @@ def test_defaults():
 def test_load_config_overrides(tmp_path):
     p = tmp_path / "c.toml"
     p.write_text(
-        'target = "mac"\ndefault_cwd = "/tmp"\nallowed_roots = ["/tmp"]\n'
+        'transport = "stdio"\ndefault_cwd = "/tmp"\nallowed_roots = ["/tmp"]\n'
         "[caps]\nrun_default_chars = 4000\n[http]\nport = 9000\npath_secret = \"abc\"\n"
         'allowed_hosts = ["h.example.com"]\n'
     )
     cfg = load_config(p)
-    assert cfg.target == "mac" and cfg.default_cwd == "/tmp"
+    assert cfg.transport == "stdio" and cfg.default_cwd == "/tmp"
     assert cfg.caps.run_default_chars == 4000
     assert cfg.caps.run_max_chars == 30000  # untouched default
     assert cfg.http.port == 9000 and cfg.http.allowed_hosts == ("h.example.com",)
@@ -174,3 +174,25 @@ def test_usage_log_disabled(tmp_path):
     log = UsageLog(LogConfig(enabled=False), str(tmp_path / "x"))
     log.record("run", 0.1, True)
     assert not (tmp_path / "x").exists()
+
+
+# ---- transport --------------------------------
+
+def test_transport_default_is_http(tmp_path):
+    assert Config().transport == "http"
+    p = tmp_path / "c.toml"
+    p.write_text('default_cwd = "/tmp"\n')
+    assert load_config(p).transport == "http"
+
+
+@pytest.mark.parametrize("text, fragment", [
+    ('transport = "ssh"\n', "transport must be"),
+    ('transport = 5\n', "transport must be|must be"),
+    ('target = "vm"\n', "unknown key"),
+    ('transport = "http"\ntarget = "vm"\n', "unknown key"),
+])
+def test_bad_transport_or_removed_target_is_rejected(tmp_path, text, fragment):
+    p = tmp_path / "c.toml"
+    p.write_text(text)
+    with pytest.raises(ConfigError, match=fragment):
+        load_config(p)

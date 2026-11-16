@@ -43,7 +43,7 @@ async def test_tool_set_and_descriptions(client):
     tools = {t.name: t for t in (await client.list_tools()).tools}
     assert set(tools) == {"run", "job", "read", "write", "edit"}
     run_desc = tools["run"].description
-    assert "target=vm" in run_desc and "bash 5.2" in run_desc and "output cap 8000" in run_desc
+    assert "transport=http" in run_desc and "bash 5.2" in run_desc and "output cap 8000" in run_desc
     for t in tools.values():
         assert t.output_schema is None  # plain text results only
 
