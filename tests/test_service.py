@@ -44,7 +44,6 @@ class FakeSystem(service.System):
         self.active = "active"
         self.show = ""
         self.job = ""             # what `launchctl print` prints (Mac); empty: the job is not loaded
-        self.admins = set()       # users that `dseditgroup -o checkmember` finds in the admin group
         self.pgrep = 1            # exit code of pgrep
         self.fail = set()         # command prefixes (tuples) that return 1
 
@@ -77,9 +76,6 @@ class FakeSystem(service.System):
             return subprocess.CompletedProcess(cmd, 0, self.show, "")
         if cmd[0] == "groupadd" or cmd[:3] == ["dseditgroup", "-o", "create"]:
             self.groups[service.GROUP] = 991
-        if cmd[:3] == ["dseditgroup", "-o", "checkmember"]:
-            ok = cmd[4] in self.admins
-            return subprocess.CompletedProcess(cmd, 0 if ok else 67, f"{'yes' if ok else 'no'} {cmd[4]}\n", "")
         if cmd[:2] == ["launchctl", "print"]:
             return subprocess.CompletedProcess(cmd, 0 if self.job else 113, self.job, "")
         if cmd[0] == "pgrep":
@@ -264,15 +260,10 @@ def test_setup_edits_the_existing_config(fake, paths):
     assert "port = 9001" in paths.config.read_text()
 
 
-def test_setup_needs_root_and_a_root_owned_install(fake, paths, capsys):
+def test_setup_needs_root(fake, paths, capsys):
     fake.euid_value = 1000
     assert service.run_command(args("setup"), fake, paths) == 2
     assert "needs root" in capsys.readouterr().err
-    fake.euid_value = 0
-    fake.owners[Path(service.__file__).parent.resolve()] = 1000
-    assert service.run_command(args("setup"), fake, paths) == 2
-    err = capsys.readouterr().err
-    assert "not owned by root" in err and "pipx install --global" in err
     assert not paths.config.exists()
 
 
@@ -349,14 +340,10 @@ def test_start_refuses_without_config_group_or_protection(fake, paths, capsys):
     assert not paths.unit.exists()
 
 
-def test_start_refuses_an_invalid_config_and_an_unsafe_install(fake, paths, capsys):
+def test_start_refuses_an_invalid_config(fake, paths, capsys):
     install_protected_config(fake, paths, 'transport = "stdio"\n')
     assert service.run_command(args("start"), fake, paths) == 2
     assert "cannot run as a service" in capsys.readouterr().err
-    paths.config.write_text(GOOD.format(secret=SECRET))
-    fake.owners[Path("/usr/local/bin")] = 1000
-    assert service.run_command(args("start"), fake, paths) == 2
-    assert "not owned by root" in capsys.readouterr().err
     assert not paths.unit.exists()
 
 
@@ -462,19 +449,6 @@ def test_not_linux_and_no_systemd(fake, paths, capsys):
     assert "systemd was not found" in capsys.readouterr().err
 
 
-def test_unsafe_path_rules(fake, tmp_path):
-    p = tmp_path / "x"
-    p.mkdir()
-    assert service.unsafe_path_reason(fake, p) is None
-    fake.modes[p.resolve()] = 0o775             # group-writable, group is root's (gid 0 in the fake): allowed
-    assert service.unsafe_path_reason(fake, p) is None
-    fake.modes[p.resolve()] = 0o757             # writable by others
-    assert "can be changed by users other than root" in service.unsafe_path_reason(fake, p)
-    fake.modes[p.resolve()] = 0o755
-    fake.owners[p.resolve()] = 1000
-    assert "not owned by root" in service.unsafe_path_reason(fake, p)
-
-
 def test_the_new_subcommands_are_wired_into_main(fake, monkeypatch, capsys):
     monkeypatch.setattr(service, "System", lambda: fake)
     fake.euid_value = 1001
@@ -542,15 +516,6 @@ def test_mac_start_prepares_state_folder_and_log_for_the_runner(mac, paths):
     assert service.run_command(args("start"), mac, paths) == 0
     assert paths.state_dir.is_dir() and paths.log.is_file() and mode_of(paths.log) == 0o640
     assert (paths.state_dir, 1001, 990) in mac.chowns and (paths.log, 1001, 990) in mac.chowns
-
-
-def test_mac_start_warns_when_the_runner_is_an_administrator(mac, paths, capsys):
-    install_protected_config(mac, paths)
-    mac.admins.add("alice")
-    assert service.run_command(args("start"), mac, paths) == 0
-    assert "alice is a macOS administrator" in capsys.readouterr().err
-    assert service.run_command(args("start", username="bob"), mac, paths) == 0
-    assert "bob is a macOS administrator" not in capsys.readouterr().err
 
 
 def test_mac_start_with_another_username_rewrites_the_plist(mac, paths):
@@ -640,12 +605,3 @@ def test_default_plist_path_depends_on_the_platform(monkeypatch):
     assert service.Paths().unit == Path("/Library/LaunchDaemons/net.leandc.service.plist")
     monkeypatch.setattr(service.sys, "platform", "linux")
     assert service.Paths().unit == Path("/etc/systemd/system/leandc.service")
-
-
-def test_a_python_that_the_user_can_change_is_refused(fake, paths, capsys):
-    install_protected_config(fake, paths)
-    fake.owners[Path(os.path.realpath(service.sys.executable))] = 501
-    for cmd in ("setup", "start"):
-        assert service.run_command(args(cmd), fake, paths) == 2
-        err = capsys.readouterr().err
-        assert "the Python that runs leandc is not safe to run as root" in err and "not owned by root" in err

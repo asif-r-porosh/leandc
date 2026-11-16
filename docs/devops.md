@@ -10,12 +10,12 @@ leandc runs commands and edits files as the user that starts the server. A dedic
    sudo useradd --create-home --shell /bin/bash leandcrun
    ```
 
-2. Install leandc for all users and start the service as that user, as in the README section "As a service on Linux (systemd)": `sudo leandc setup`, then `sudo leandc start leandcrun`. Pick a user name other than `leandc`, because the service commands create a group of that name.
+2. Install leandc with sudo (`--global`) and start the service as that user, as in the README section "As a service on Linux (systemd)": `sudo leandc setup`, then `sudo leandc start leandcrun`. Pick a user name other than `leandc`, because the service commands create a group of that name.
 3. Give the user no private SSH keys, no agent and no `sudo`.
 
 ## macOS
 
-To start at boot with nobody logged in, use the launchd daemon that `leandc` installs: `sudo leandc setup`, then `sudo leandc start <user>`, as in the README section "As a service on macOS (launchd)". Use a standard (non-admin) user with no private SSH keys and no agent. The LaunchAgent below is the older, manual route: it runs only while the owning user is logged in.
+To start at boot with nobody logged in, use the launchd daemon that `leandc` installs: `sudo leandc setup`, then `sudo leandc start <user>`, as in the README section "As a service on macOS (launchd)". Use a separate limited user with no private SSH keys and no agent. The LaunchAgent below is the older, manual route: it runs only while the owning user is logged in.
 
 A launchd LaunchAgent starts the server when the owning user logs in and restarts the server if the process dies. This setup has been run with a normal logged-in user.
 

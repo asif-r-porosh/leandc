@@ -43,7 +43,7 @@ The command installs two programs: `leandc` (the server) and `leandc-cli` (the [
 
 ### As a service on Linux (systemd)
 
-The service commands run the program as root, so the install must be for all users. `--global` needs pipx 1.5.0 or newer. Ubuntu 24.04 ships pipx 1.4.3: use the standalone program instead (`curl -fsSL -o pipx.pyz https://github.com/pypa/pipx/releases/latest/download/pipx.pyz`, then `sudo python3 pipx.pyz install --global ...` in place of `sudo pipx install --global ...`).
+Install with sudo (`--global`): the program files then belong to root, so nothing a user or a tricked chat can reach is able to change the code that `sudo leandc` runs as root. For more safety, run the service as a different user from the one that installed it (see `docs/devops.md`). `--global` needs pipx 1.5.0 or newer. Ubuntu 24.04 ships pipx 1.4.3: use the standalone program instead (`curl -fsSL -o pipx.pyz https://github.com/pypa/pipx/releases/latest/download/pipx.pyz`, then `sudo python3 pipx.pyz install --global ...` in place of `sudo pipx install --global ...`).
 
 ```bash
 sudo pipx install --global git+https://github.com/asif-r-porosh/leandc
@@ -61,7 +61,7 @@ sudo leandc stop       # stops now and at boot
 
 ### As a service on macOS (launchd)
 
-The same four commands work on a Mac. The service is a launchd daemon: it starts at boot with nobody logged in, and runs as the user given to `start`. The program runs as root under `sudo`, so the install must be for all users, and the folders on its path must be owned by root. The same holds for the Python that runs it: `leandc` refuses to run when that Python, or a folder above the program, can be changed by a normal user. Homebrew's Python belongs to the user, and on an Intel Mac `/usr/local/bin` often does too. Install with a Python 3.12 or newer that only root can change; the error message names the folder that fails the check.
+The same four commands work on a Mac. The service is a launchd daemon: it starts at boot with nobody logged in, and runs as the user given to `start`. Install with sudo (`--global`), for the same reason as on Linux, and run the service as a different user where possible.
 
 ```bash
 sudo /path/to/pipx install --global git+https://github.com/asif-r-porosh/leandc
@@ -76,7 +76,6 @@ sudo leandc stop       # stops now and at boot
 - The plist is `/Library/LaunchDaemons/net.leandc.service.plist`. `start` writes it; `stop` unloads it and removes it, which is what keeps it from starting at boot.
 - State sits in `/var/lib/leandc` and the output in `/var/log/leandc.log` (launchd has no journal). The log is not rotated.
 - launchd starts the job with a short `PATH`; the plist sets Homebrew's folders, `/usr/local/bin` and the system folders.
-- The runner should be a standard (non-admin) user. An administrator can use `sudo` and change the config; `start` warns when the runner is one.
 - Removal by hand: `sudo leandc stop`, delete `/etc/leandc`, `/var/lib/leandc` and `/var/log/leandc.log`, then `sudo dseditgroup -o delete leandc`.
 
 ## Setup

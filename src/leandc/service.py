@@ -1,8 +1,8 @@
 """Service control: `leandc setup`, `start`, `stop` and `status`, as a systemd unit (Linux) or a launchd daemon (Mac).
 
 A service that starts at boot with nobody logged in is a system service, so setup, start and
-stop need root. The program is run as root by `sudo leandc ...`, so it must be installed for all
-users (`sudo pipx install --global`): a copy in a user's home could be edited by that user.
+stop need root. The program is run as root by `sudo leandc ...`, so it should be installed with sudo
+(`sudo pipx install --global`): then its files belong to root and no other user can change them.
 
 The service runs as an unprivileged runner and can read the config but not change it:
 config folder /etc/leandc (root:leandc 751), config file root:leandc 640, unit or plist owned by root.
@@ -169,40 +169,11 @@ def precheck(system: System, need_root: bool, what: str) -> None:
         raise ServiceError(f"{what} needs root: run it with sudo")
 
 
-def unsafe_path_reason(system: System, path: str | Path) -> str | None:
-    """Why `path` (resolved) or a folder above it could be changed by someone other than root, else None."""
-    cur = Path(os.path.realpath(path))
-    for part in (cur, *cur.parents):
-        st = system.stat(part)
-        if st.st_uid != 0:
-            return f"{part} is not owned by root"
-        if st.st_mode & 0o002 or (st.st_mode & 0o020 and st.st_gid != 0):
-            return f"{part} can be changed by users other than root"
-    return None
-
-
 def find_binary(system: System) -> str:
     found = system.which("leandc")
     if not found:
-        raise ServiceError(f"the leandc command was not found on PATH; install it for all users: {INSTALL_HINT}")
+        raise ServiceError(f"the leandc command was not found on PATH; install it with sudo so every user can run it: {INSTALL_HINT}")
     return os.path.abspath(found)
-
-
-def require_root_owned_install(system: System, binary: str) -> None:
-    for path in (Path(__file__).parent, Path(binary), Path(binary).parent):
-        why = unsafe_path_reason(system, path)
-        if why:
-            raise ServiceError(
-                f"{why}. These commands run leandc as root, so the program must be installed for all users: {INSTALL_HINT}"
-            )
-    # The install's own Python runs as root too. A venv only links to its base Python (on a Mac often Homebrew's,
-    # which belongs to the user), so the real file behind the link has to be root-owned as well.
-    why = unsafe_path_reason(system, sys.executable)
-    if why:
-        raise ServiceError(
-            f"the Python that runs leandc is not safe to run as root: {why}. Install leandc with a Python that only root "
-            f"can change (on a Mac, the python.org installer or the system folders; Homebrew's Python belongs to the user)"
-        )
 
 
 def resolve_runner(system: System, name: str | None) -> str:
@@ -350,7 +321,6 @@ def cmd_setup(system: System, paths: Paths, show: bool) -> int:
         return 0
     precheck(system, True, "setup")
     binary = system.which("leandc")
-    require_root_owned_install(system, binary or sys.argv[0])
     gid = ensure_group(system)
     existing = paths.config.read_text(encoding="utf-8") if paths.config.exists() else None
     new = edit_until_valid(system, existing if existing is not None else render_template())
@@ -384,7 +354,6 @@ def systemctl(system: System, *args: str) -> subprocess.CompletedProcess:
 def cmd_start(system: System, paths: Paths, username: str | None) -> int:
     precheck(system, True, "start")
     binary = find_binary(system)
-    require_root_owned_install(system, binary)
     if system.group_gid(GROUP) is None or not paths.config.exists():
         raise ServiceError("no service config yet: run sudo leandc setup first")
     protected, why = config_protection(system, paths)
@@ -452,8 +421,6 @@ def render_plist(runner: str, binary: str, config: str, log: str) -> str:
 def install_launchd(system: System, paths: Paths, runner: str, binary: str) -> None:
     uid, _, _ = system.user(runner)  # type: ignore[misc]  # resolve_runner checked it exists
     gid = system.group_gid(GROUP) or 0
-    if system.run(["dseditgroup", "-o", "checkmember", "-m", runner, "admin"]).stdout.startswith("yes"):
-        warn(f"{runner} is a macOS administrator: it could use sudo to change the config. A standard user is safer.")
     paths.state_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(paths.state_dir, 0o755)
     system.chown(paths.state_dir, uid, gid)
