@@ -1,17 +1,18 @@
-"""Linux service control: `leandc setup`, `start`, `stop` and `status` for a systemd service.
+"""Service control: `leandc setup`, `start`, `stop` and `status`, as a systemd unit (Linux) or a launchd daemon (Mac).
 
 A service that starts at boot with nobody logged in is a system service, so setup, start and
 stop need root. The program is run as root by `sudo leandc ...`, so it must be installed for all
 users (`sudo pipx install --global`): a copy in a user's home could be edited by that user.
 
 The service runs as an unprivileged runner and can read the config but not change it:
-config folder /etc/leandc (root:leandc 751), config file root:leandc 640, unit file owned by root.
+config folder /etc/leandc (root:leandc 751), config file root:leandc 640, unit or plist owned by root.
 
-Everything that touches the machine goes through `System`, so the tests need neither root nor systemd.
+Everything that touches the machine goes through `System`, so the tests need neither root, systemd nor launchd.
 """
 from __future__ import annotations
 
 import os
+import plistlib
 import re
 import secrets
 import shlex
@@ -20,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,10 @@ from .server import check_http
 
 GROUP = "leandc"
 UNIT_NAME = "leandc.service"
+LABEL = "net.leandc.service"  # the launchd label on the Mac
 STATE_DIR = "/var/lib/leandc"
+MAC_PATH = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+LOG_FILE = "/var/log/leandc.log"  # the Mac has no journal: launchd writes the output here
 INSTALL_HINT = "sudo pipx install --global git+https://github.com/asif-r-porosh/leandc"
 
 UNIT = """\
@@ -61,10 +65,18 @@ class ServiceError(Exception):
     """A refusal or failure with a message meant for the person at the terminal."""
 
 
+def default_unit() -> Path:
+    if sys.platform == "darwin":
+        return Path("/Library/LaunchDaemons") / f"{LABEL}.plist"
+    return Path("/etc/systemd/system") / UNIT_NAME
+
+
 @dataclass(frozen=True)
 class Paths:
     config_dir: Path = Path("/etc/leandc")
-    unit: Path = Path("/etc/systemd/system") / UNIT_NAME
+    unit: Path = field(default_factory=default_unit)  # the systemd unit, or the launchd plist on the Mac
+    state_dir: Path = Path(STATE_DIR)  # the Mac has no StateDirectory=, so `start` creates this
+    log: Path = Path(LOG_FILE)
 
     @property
     def config(self) -> Path:
@@ -76,6 +88,9 @@ class System:
 
     def is_linux(self) -> bool:
         return sys.platform.startswith("linux")
+
+    def is_mac(self) -> bool:
+        return sys.platform == "darwin"
 
     def has_systemd(self) -> bool:
         return os.path.isdir("/run/systemd/system")
@@ -145,10 +160,11 @@ def warn(text: str) -> None:
 # ------------------------------------------------------------------ checks ----
 
 def precheck(system: System, need_root: bool, what: str) -> None:
-    if not system.is_linux():
-        raise ServiceError("service control works on Linux with systemd only for now (the Mac comes later)")
-    if not system.has_systemd():
-        raise ServiceError("systemd was not found on this machine")
+    if system.is_linux():
+        if not system.has_systemd():
+            raise ServiceError("systemd was not found on this machine")
+    elif not system.is_mac():
+        raise ServiceError("service control works on Linux with systemd and on macOS only")
     if need_root and system.euid() != 0:
         raise ServiceError(f"{what} needs root: run it with sudo")
 
@@ -179,6 +195,14 @@ def require_root_owned_install(system: System, binary: str) -> None:
             raise ServiceError(
                 f"{why}. These commands run leandc as root, so the program must be installed for all users: {INSTALL_HINT}"
             )
+    # The install's own Python runs as root too. A venv only links to its base Python (on a Mac often Homebrew's,
+    # which belongs to the user), so the real file behind the link has to be root-owned as well.
+    why = unsafe_path_reason(system, sys.executable)
+    if why:
+        raise ServiceError(
+            f"the Python that runs leandc is not safe to run as root: {why}. Install leandc with a Python that only root "
+            f"can change (on a Mac, the python.org installer or the system folders; Homebrew's Python belongs to the user)"
+        )
 
 
 def resolve_runner(system: System, name: str | None) -> str:
@@ -304,7 +328,10 @@ def write_atomic(system: System, path: Path, text: str, mode: int, owner: tuple[
 def ensure_group(system: System) -> int:
     gid = system.group_gid(GROUP)
     if gid is None:
-        result = system.run(["groupadd", "--system", GROUP])
+        if system.is_mac():
+            result = system.run(["dseditgroup", "-o", "create", "-r", "leandc service", GROUP])
+        else:
+            result = system.run(["groupadd", "--system", GROUP])
         gid = system.group_gid(GROUP)
         if result.returncode != 0 or gid is None:
             raise ServiceError(f"could not create the group {GROUP}: {result.stderr.strip()}")
@@ -367,17 +394,23 @@ def cmd_start(system: System, paths: Paths, username: str | None) -> int:
     if problem:
         raise ServiceError(f"the config cannot run as a service: {problem}")
     runner = resolve_runner(system, username)
-    unit = UNIT.format(user=runner, group=GROUP, binary=unit_quote(binary), config=unit_quote(str(paths.config)))
-    write_atomic(system, paths.unit, unit, 0o644)
-    systemctl(system, "daemon-reload")
-    systemctl(system, "enable", UNIT_NAME)
-    systemctl(system, "restart", UNIT_NAME)
+    if system.is_mac():
+        install_launchd(system, paths, runner, binary)
+    else:
+        unit = UNIT.format(user=runner, group=GROUP, binary=unit_quote(binary), config=unit_quote(str(paths.config)))
+        write_atomic(system, paths.unit, unit, 0o644)
+        systemctl(system, "daemon-reload")
+        systemctl(system, "enable", UNIT_NAME)
+        systemctl(system, "restart", UNIT_NAME)
     for _ in range(5):
         system.sleep(1)
-        if system.run(["systemctl", "is-active", UNIT_NAME]).stdout.strip() == "active":
+        if is_running(system):
             say(f"leandc is running as {runner} and starts at every boot")
             return 0
-    warn(f"the service did not become active; see: journalctl -u {UNIT_NAME} -n 30")
+    if system.is_mac():
+        warn(f"the service did not start; see the log: {paths.log}")
+    else:
+        warn(f"the service did not become active; see: journalctl -u {UNIT_NAME} -n 30")
     return 1
 
 
@@ -386,26 +419,113 @@ def cmd_stop(system: System, paths: Paths) -> int:
     if not paths.unit.exists():
         say("the leandc service is not installed; nothing to stop")
         return 0
-    systemctl(system, "disable", "--now", UNIT_NAME)
+    if system.is_mac():
+        # No enable or disable on the Mac: removing the plist is what keeps it from starting at boot.
+        system.run(["launchctl", "bootout", f"system/{LABEL}"])  # fails when not loaded: fine
+        paths.unit.unlink()
+    else:
+        systemctl(system, "disable", "--now", UNIT_NAME)
     say("leandc is stopped and will not start at boot")
     return 0
 
 
+# ------------------------------------------------------------------ launchd ----
+
+def render_plist(runner: str, binary: str, config: str, log: str) -> str:
+    plist = {
+        "Label": LABEL,
+        "ProgramArguments": [binary, "serve", "--config", config],
+        "UserName": runner,
+        "GroupName": GROUP,  # the primary group, so the runner reads the config (640, group leandc)
+        "RunAtLoad": True,
+        "KeepAlive": {"SuccessfulExit": False},  # restart after a crash, not after a clean stop
+        "ThrottleInterval": 3,
+        "ExitTimeOut": 15,
+        # launchd starts jobs with a bare PATH (/usr/bin:/bin:/usr/sbin:/sbin); `run` needs the usual tool folders
+        "EnvironmentVariables": {"PATH": MAC_PATH},
+        "StandardOutPath": log,
+        "StandardErrorPath": log,
+    }
+    return plistlib.dumps(plist).decode("utf-8")
+
+
+def install_launchd(system: System, paths: Paths, runner: str, binary: str) -> None:
+    uid, _, _ = system.user(runner)  # type: ignore[misc]  # resolve_runner checked it exists
+    gid = system.group_gid(GROUP) or 0
+    if system.run(["dseditgroup", "-o", "checkmember", "-m", runner, "admin"]).stdout.startswith("yes"):
+        warn(f"{runner} is a macOS administrator: it could use sudo to change the config. A standard user is safer.")
+    paths.state_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(paths.state_dir, 0o755)
+    system.chown(paths.state_dir, uid, gid)
+    paths.log.touch(exist_ok=True)
+    os.chmod(paths.log, 0o640)
+    system.chown(paths.log, uid, gid)
+    write_atomic(system, paths.unit, render_plist(runner, binary, str(paths.config), str(paths.log)), 0o644, (0, 0))
+    system.run(["launchctl", "bootout", f"system/{LABEL}"])  # a changed plist needs a reload; fails when not loaded: fine
+    for _ in range(5):  # bootout can still be tearing the old job down; bootstrap then fails for a moment
+        result = system.run(["launchctl", "bootstrap", "system", str(paths.unit)])
+        if result.returncode == 0:
+            return
+        system.sleep(1)
+    if result.returncode != 0:
+        raise ServiceError(f"launchctl bootstrap failed: {(result.stderr or result.stdout).strip()}")
+
+
+def mac_job(system: System) -> tuple[str, int | None] | None:
+    """(state, pid) of the daemon as launchd reports it; None when launchctl cannot tell (or it is not loaded)."""
+    result = system.run(["launchctl", "print", f"system/{LABEL}"])
+    if result.returncode != 0:
+        return None
+    state = re.search(r"^\s*state = (\S+)", result.stdout, flags=re.M)
+    pid = re.search(r"^\s*pid = (\d+)", result.stdout, flags=re.M)
+    return (state.group(1) if state else "?", int(pid.group(1)) if pid else None)
+
+
+def is_running(system: System) -> bool:
+    if system.is_mac():
+        job = mac_job(system)
+        return job is not None and job[0] == "running"
+    return system.run(["systemctl", "is-active", UNIT_NAME]).stdout.strip() == "active"
+
+
 # ------------------------------------------------------------------ status ----
+
+def status_launchd(system: System, paths: Paths) -> None:
+    """The Mac has no enable state: the plist in /Library/LaunchDaemons is what starts at boot."""
+    try:
+        runner = plistlib.loads(paths.unit.read_bytes()).get("UserName") or "?"
+    except (FileNotFoundError, ValueError):
+        say("service:  stopped (not installed)")
+        say("boot:     disabled")
+        return
+    job = mac_job(system)
+    if job is None and system.euid() != 0:
+        # launchctl may refuse a normal user; fall back to a process search
+        found = system.run(["pgrep", "-f", f"serve --config {paths.config}"])
+        say(f"service:  {'running' if found.returncode == 0 else 'not running'}")
+    else:
+        say(f"service:  {job[0] if job else 'not running'}" + (f" (pid {job[1]})" if job and job[1] else ""))
+    say("boot:     enabled")
+    say(f"runner:   {runner}")
+    say(f"log:      {paths.log}")
+
 
 def cmd_status(system: System, paths: Paths) -> int:
     precheck(system, False, "status")
-    shown = system.run(
-        ["systemctl", "show", UNIT_NAME, "-p", "LoadState", "-p", "ActiveState", "-p", "SubState",
-         "-p", "UnitFileState", "-p", "User", "--no-pager"]
-    )
-    props = dict(line.split("=", 1) for line in shown.stdout.splitlines() if "=" in line)
-    if props.get("LoadState") != "loaded":
-        say("service:  not installed")
+    if system.is_mac():
+        status_launchd(system, paths)
     else:
-        say(f"service:  {props.get('ActiveState', '?')} ({props.get('SubState', '?')})")
-        say(f"boot:     {props.get('UnitFileState') or '?'}")
-        say(f"runner:   {props.get('User') or '?'}")
+        shown = system.run(
+            ["systemctl", "show", UNIT_NAME, "-p", "LoadState", "-p", "ActiveState", "-p", "SubState",
+             "-p", "UnitFileState", "-p", "User", "--no-pager"]
+        )
+        props = dict(line.split("=", 1) for line in shown.stdout.splitlines() if "=" in line)
+        if props.get("LoadState") != "loaded":
+            say("service:  not installed")
+        else:
+            say(f"service:  {props.get('ActiveState', '?')} ({props.get('SubState', '?')})")
+            say(f"boot:     {props.get('UnitFileState') or '?'}")
+            say(f"runner:   {props.get('User') or '?'}")
     say(f"config:   {paths.config}")
     protected, why = config_protection(system, paths)
     if protected is True:

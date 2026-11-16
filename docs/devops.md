@@ -15,6 +15,8 @@ leandc runs commands and edits files as the user that starts the server. A dedic
 
 ## macOS
 
+To start at boot with nobody logged in, use the launchd daemon that `leandc` installs: `sudo leandc setup`, then `sudo leandc start <user>`, as in the README section "As a service on macOS (launchd)". Use a standard (non-admin) user with no private SSH keys and no agent. The LaunchAgent below is the older, manual route: it runs only while the owning user is logged in.
+
 A launchd LaunchAgent starts the server when the owning user logs in and restarts the server if the process dies. This setup has been run with a normal logged-in user.
 
 1. Create the plist `~/Library/LaunchAgents/net.leandc.http.plist` for that user. launchd does not expand `~`, so every path is absolute. Replace `USER` throughout:

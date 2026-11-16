@@ -23,6 +23,7 @@ SECRET = "k" * 30
 class FakeSystem(service.System):
     def __init__(self):
         self.linux = True
+        self.mac = False
         self.systemd = True
         self.euid_value = 0
         self.sudo = "alice"
@@ -42,10 +43,16 @@ class FakeSystem(service.System):
         self.tty = True
         self.active = "active"
         self.show = ""
+        self.job = ""             # what `launchctl print` prints (Mac); empty: the job is not loaded
+        self.admins = set()       # users that `dseditgroup -o checkmember` finds in the admin group
+        self.pgrep = 1            # exit code of pgrep
         self.fail = set()         # command prefixes (tuples) that return 1
 
     def is_linux(self):
         return self.linux
+
+    def is_mac(self):
+        return self.mac
 
     def has_systemd(self):
         return self.systemd
@@ -68,8 +75,15 @@ class FakeSystem(service.System):
             return subprocess.CompletedProcess(cmd, 0, self.active + "\n", "")
         if cmd[:2] == ["systemctl", "show"]:
             return subprocess.CompletedProcess(cmd, 0, self.show, "")
-        if cmd[0] == "groupadd":
+        if cmd[0] == "groupadd" or cmd[:3] == ["dseditgroup", "-o", "create"]:
             self.groups[service.GROUP] = 991
+        if cmd[:3] == ["dseditgroup", "-o", "checkmember"]:
+            ok = cmd[4] in self.admins
+            return subprocess.CompletedProcess(cmd, 0 if ok else 67, f"{'yes' if ok else 'no'} {cmd[4]}\n", "")
+        if cmd[:2] == ["launchctl", "print"]:
+            return subprocess.CompletedProcess(cmd, 0 if self.job else 113, self.job, "")
+        if cmd[0] == "pgrep":
+            return subprocess.CompletedProcess(cmd, self.pgrep, "", "")
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     def user(self, name):
@@ -115,7 +129,8 @@ def fake():
 
 @pytest.fixture
 def paths(tmp_path):
-    return Paths(config_dir=tmp_path / "etc" / "leandc", unit=tmp_path / "units" / "leandc.service")
+    return Paths(config_dir=tmp_path / "etc" / "leandc", unit=tmp_path / "units" / "leandc.service",
+                 state_dir=tmp_path / "var" / "lib" / "leandc", log=tmp_path / "var" / "log" / "leandc.log")
 
 
 def fill_host(path: Path):
@@ -441,7 +456,7 @@ def test_not_linux_and_no_systemd(fake, paths, capsys):
     fake.linux = False
     for cmd in ("start", "stop", "status", "setup"):
         assert service.run_command(args(cmd), fake, paths) == 2
-        assert "Linux with systemd only" in capsys.readouterr().err
+        assert "Linux with systemd and on macOS only" in capsys.readouterr().err
     fake.linux, fake.systemd = True, False
     assert service.run_command(args("status"), fake, paths) == 2
     assert "systemd was not found" in capsys.readouterr().err
@@ -490,3 +505,147 @@ def test_the_real_system_class_basics(tmp_path):
     assert real.run(["echo", "hi"]).stdout.strip() == "hi"
     assert real.stat(tmp_path).st_uid == os.getuid()
     assert real.which("no-such-command-xyz") is None
+
+
+# ------------------------------------------------------------- the Mac ----
+
+@pytest.fixture
+def mac(fake, paths):
+    fake.linux, fake.mac, fake.systemd = False, True, False
+    fake.job = "system/net.leandc.service = {\n\tstate = running\n\tpid = 4242\n}\n"
+    paths.log.parent.mkdir(parents=True)
+    return fake
+
+
+def test_mac_start_writes_a_plist_and_loads_it(mac, paths, capsys):
+    import plistlib
+
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    plist = plistlib.loads(paths.unit.read_bytes())
+    assert plist["Label"] == "net.leandc.service"
+    assert plist["ProgramArguments"] == ["/usr/local/bin/leandc", "serve", "--config", str(paths.config)]
+    assert plist["UserName"] == "alice" and plist["GroupName"] == "leandc"
+    assert plist["RunAtLoad"] is True and plist["KeepAlive"] == {"SuccessfulExit": False}
+    assert plist["StandardOutPath"] == plist["StandardErrorPath"] == str(paths.log)
+    assert plist["EnvironmentVariables"]["PATH"].split(":")[-4:] == ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+    assert mode_of(paths.unit) == 0o644 and (paths.unit.with_name(paths.unit.name + ".new"), 0, 0) in mac.chowns
+    launchctl = [c for c in mac.calls if c[0] == "launchctl" and c[1] in ("bootout", "bootstrap")]
+    assert launchctl == [["launchctl", "bootout", "system/net.leandc.service"],
+                         ["launchctl", "bootstrap", "system", str(paths.unit)]]
+    assert not any(c[0] == "systemctl" for c in mac.calls)
+    assert "running as alice" in capsys.readouterr().out
+
+
+def test_mac_start_prepares_state_folder_and_log_for_the_runner(mac, paths):
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    assert paths.state_dir.is_dir() and paths.log.is_file() and mode_of(paths.log) == 0o640
+    assert (paths.state_dir, 1001, 990) in mac.chowns and (paths.log, 1001, 990) in mac.chowns
+
+
+def test_mac_start_warns_when_the_runner_is_an_administrator(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    mac.admins.add("alice")
+    assert service.run_command(args("start"), mac, paths) == 0
+    assert "alice is a macOS administrator" in capsys.readouterr().err
+    assert service.run_command(args("start", username="bob"), mac, paths) == 0
+    assert "bob is a macOS administrator" not in capsys.readouterr().err
+
+
+def test_mac_start_with_another_username_rewrites_the_plist(mac, paths):
+    import plistlib
+
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    assert service.run_command(args("start", username="bob"), mac, paths) == 0
+    assert plistlib.loads(paths.unit.read_bytes())["UserName"] == "bob"
+
+
+def test_mac_start_reports_a_failing_bootstrap(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    mac.fail.add(("launchctl", "bootstrap"))
+    assert service.run_command(args("start"), mac, paths) == 2
+    assert "launchctl bootstrap failed" in capsys.readouterr().err
+
+
+def test_mac_start_says_so_when_the_job_does_not_run(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    mac.job = ""
+    assert service.run_command(args("start"), mac, paths) == 1
+    assert str(paths.log) in capsys.readouterr().err
+
+
+def test_mac_setup_creates_the_group_with_dseditgroup(mac, paths):
+    mac.groups.clear()
+    mac.on_edit = fill_host
+    assert service.run_command(args("setup"), mac, paths) == 0
+    assert ["dseditgroup", "-o", "create", "-r", "leandc service", "leandc"] in mac.calls
+    assert not any(c[0] == "groupadd" for c in mac.calls)
+
+
+def test_mac_stop_unloads_and_removes_the_plist(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    mac.calls.clear()
+    assert service.run_command(args("stop"), mac, paths) == 0
+    assert ["launchctl", "bootout", "system/net.leandc.service"] in mac.calls
+    assert not paths.unit.exists()
+    assert "will not start at boot" in capsys.readouterr().out
+    assert service.run_command(args("stop"), mac, paths) == 0  # again: nothing to do
+    assert "not installed" in capsys.readouterr().out
+
+
+def test_mac_stop_needs_root(mac, paths, capsys):
+    mac.euid_value = 1001
+    assert service.run_command(args("stop"), mac, paths) == 2
+    assert "stop needs root" in capsys.readouterr().err
+
+
+def test_mac_status_running(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    capsys.readouterr()
+    mac.euid_value = 1001
+    assert service.run_command(args("status"), mac, paths) == 0
+    out = capsys.readouterr().out
+    assert "service:  running (pid 4242)" in out and "boot:     enabled" in out and "runner:   alice" in out
+    assert f"log:      {paths.log}" in out and "config protected: yes" in out
+
+
+def test_mac_status_without_root_falls_back_to_a_process_search(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    assert service.run_command(args("start"), mac, paths) == 0
+    capsys.readouterr()
+    mac.euid_value = 1001
+    mac.job = ""                     # launchctl refuses a normal user
+    mac.pgrep = 0
+    assert service.run_command(args("status"), mac, paths) == 0
+    assert "service:  running" in capsys.readouterr().out
+    mac.pgrep = 1
+    assert service.run_command(args("status"), mac, paths) == 0
+    assert "service:  not running" in capsys.readouterr().out
+
+
+def test_mac_status_when_stopped(mac, paths, capsys):
+    install_protected_config(mac, paths)
+    mac.euid_value = 1001
+    assert service.run_command(args("status"), mac, paths) == 0
+    out = capsys.readouterr().out
+    assert "service:  stopped (not installed)" in out and "boot:     disabled" in out
+
+
+def test_default_plist_path_depends_on_the_platform(monkeypatch):
+    monkeypatch.setattr(service.sys, "platform", "darwin")
+    assert service.Paths().unit == Path("/Library/LaunchDaemons/net.leandc.service.plist")
+    monkeypatch.setattr(service.sys, "platform", "linux")
+    assert service.Paths().unit == Path("/etc/systemd/system/leandc.service")
+
+
+def test_a_python_that_the_user_can_change_is_refused(fake, paths, capsys):
+    install_protected_config(fake, paths)
+    fake.owners[Path(os.path.realpath(service.sys.executable))] = 501
+    for cmd in ("setup", "start"):
+        assert service.run_command(args(cmd), fake, paths) == 2
+        err = capsys.readouterr().err
+        assert "the Python that runs leandc is not safe to run as root" in err and "not owned by root" in err

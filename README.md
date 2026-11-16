@@ -59,6 +59,26 @@ sudo leandc stop       # stops now and at boot
 - `status` needs no sudo. With sudo, the output adds the transport and port.
 - Removal by hand: `sudo leandc stop`, delete the unit file and `/etc/leandc`, then `sudo groupdel leandc`.
 
+### As a service on macOS (launchd)
+
+The same four commands work on a Mac. The service is a launchd daemon: it starts at boot with nobody logged in, and runs as the user given to `start`. The program runs as root under `sudo`, so the install must be for all users, and the folders on its path must be owned by root. The same holds for the Python that runs it: `leandc` refuses to run when that Python, or a folder above the program, can be changed by a normal user. Homebrew's Python belongs to the user, and on an Intel Mac `/usr/local/bin` often does too. Install with a Python 3.12 or newer that only root can change; the error message names the folder that fails the check.
+
+```bash
+sudo /path/to/pipx install --global git+https://github.com/asif-r-porosh/leandc
+sudo leandc setup
+sudo leandc start      # runs as the sudo user; `sudo leandc start alice` picks another user
+leandc status
+sudo leandc stop       # stops now and at boot
+```
+
+- `sudo` does not see a pipx that lives in `~/.local/bin`: give the full path of pipx, as above.
+- The config is `/etc/leandc/config.toml`, the same as on Linux. `setup` creates the group `leandc` with `dseditgroup`, and the daemon runs with that group, so the runner reads the config and cannot change it.
+- The plist is `/Library/LaunchDaemons/net.leandc.service.plist`. `start` writes it; `stop` unloads it and removes it, which is what keeps it from starting at boot.
+- State sits in `/var/lib/leandc` and the output in `/var/log/leandc.log` (launchd has no journal). The log is not rotated.
+- launchd starts the job with a short `PATH`; the plist sets Homebrew's folders, `/usr/local/bin` and the system folders.
+- The runner should be a standard (non-admin) user. An administrator can use `sudo` and change the config; `start` warns when the runner is one.
+- Removal by hand: `sudo leandc stop`, delete `/etc/leandc`, `/var/lib/leandc` and `/var/log/leandc.log`, then `sudo dseditgroup -o delete leandc`.
+
 ## Setup
 
 1. Run
