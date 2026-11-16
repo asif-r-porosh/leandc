@@ -171,6 +171,8 @@ def precheck(system: System, need_root: bool, what: str) -> None:
 
 def find_binary(system: System) -> str:
     found = system.which("leandc")
+    if not found and os.path.isabs(sys.argv[0]) and os.path.basename(sys.argv[0]) == "leandc":
+        found = sys.argv[0]  # started by its full path: sudo's PATH may not hold the install folder
     if not found:
         raise ServiceError(f"the leandc command was not found on PATH; install it with sudo so every user can run it: {INSTALL_HINT}")
     return os.path.abspath(found)

@@ -605,3 +605,12 @@ def test_default_plist_path_depends_on_the_platform(monkeypatch):
     assert service.Paths().unit == Path("/Library/LaunchDaemons/net.leandc.service.plist")
     monkeypatch.setattr(service.sys, "platform", "linux")
     assert service.Paths().unit == Path("/etc/systemd/system/leandc.service")
+
+
+def test_find_binary_falls_back_to_the_full_path_it_was_started_with(fake, monkeypatch):
+    fake.found.pop("leandc")
+    monkeypatch.setattr(service.sys, "argv", ["/usr/local/bin/leandc", "start"])
+    assert service.find_binary(fake) == "/usr/local/bin/leandc"
+    monkeypatch.setattr(service.sys, "argv", ["leandc", "start"])
+    with pytest.raises(ServiceError, match="not found on PATH"):
+        service.find_binary(fake)
