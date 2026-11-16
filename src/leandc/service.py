@@ -247,6 +247,10 @@ def mask_secret(text: str) -> str:
     return re.sub(r"""^(\s*path_secret\s*=\s*)("[^"]*"|'[^']*')""", r'\1"********"', text, flags=re.M)
 
 
+# Window editors open the file as the normal user, who cannot read the root-only temp copy, and many return at once.
+WINDOW_EDITORS = {"code", "code-insiders", "codium", "cursor", "windsurf", "subl", "mate", "atom", "zed", "open", "gedit", "kate"}
+
+
 def pick_editor(system: System) -> list[str]:
     for var in ("VISUAL", "EDITOR"):
         value = system.getenv(var)
@@ -254,6 +258,9 @@ def pick_editor(system: System) -> list[str]:
             try:
                 parts = shlex.split(value)
             except ValueError:
+                continue
+            if parts and os.path.basename(parts[0]) in WINDOW_EDITORS:
+                warn(f"{var}={parts[0]} is a window editor and cannot open the root-only config copy; using a terminal editor")
                 continue
             if parts:
                 return parts

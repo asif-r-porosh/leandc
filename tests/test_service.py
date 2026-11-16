@@ -194,8 +194,8 @@ def test_pick_editor_order(fake):
     assert service.pick_editor(fake) == ["/usr/bin/nano"]
     fake.found.pop("nano")
     assert service.pick_editor(fake) == ["/usr/bin/vi"]
-    fake.env["EDITOR"] = "code -w"
-    assert service.pick_editor(fake) == ["code", "-w"]
+    fake.env["EDITOR"] = "vim -u NONE"
+    assert service.pick_editor(fake) == ["vim", "-u", "NONE"]
     fake.env["VISUAL"] = "emacs"
     assert service.pick_editor(fake) == ["emacs"]
     fake.found.pop("vi")
@@ -632,3 +632,12 @@ def test_a_group_that_does_not_appear_after_creation_is_reported(mac):
     mac.run = lambda cmd: subprocess.CompletedProcess(cmd, 0, "", "")  # create "succeeds" but nothing appears
     with pytest.raises(ServiceError, match="could not create the group leandc: no reason given"):
         service.ensure_group(mac)
+
+
+def test_a_window_editor_is_skipped_for_a_terminal_editor(fake, capsys):
+    fake.env["VISUAL"] = "/usr/local/bin/code --wait"
+    fake.env["EDITOR"] = "code"
+    assert service.pick_editor(fake) == ["/usr/bin/nano"]
+    assert "window editor" in capsys.readouterr().err
+    fake.env["EDITOR"] = "vim"
+    assert service.pick_editor(fake) == ["vim"]
