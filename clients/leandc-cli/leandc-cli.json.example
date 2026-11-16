@@ -1,0 +1,7 @@
+{
+  "_note": "Copy to leandc-cli.json. Keys starting with _ are ignored. The secret sits inside url, so keep this file private.",
+  "url": "https://leandc.example.com/PASTE-THE-SECRET-HERE/mcp",
+  "fallback_url": "",
+  "local_root": "/home/z/my-project/",
+  "timeout": 90
+}
