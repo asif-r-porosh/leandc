@@ -33,6 +33,14 @@ The benchmark was run with Claude Code, not Claude Chat. The results reflect the
 - Bash
 - For remote: Ubuntu server with public DNS name, ports 80 and 443 open, and a TLS reverse proxy
 
+## Install with pipx
+
+```bash
+pipx install git+https://github.com/asif-r-porosh/leandc
+```
+
+The command installs two programs: `leandc` (the server) and `leandc-cli` (the [client](clients/leandc-cli/README.md)). Python 3.12 or newer is required. A pipx install creates no config file. Copy `config.example.toml` to `~/.config/leandc/config.toml` and edit as in Setup step 2. In the desktop-app entry (Setup step 3), `command` is the path printed by `which leandc`.
+
 ## Setup
 
 1. Run

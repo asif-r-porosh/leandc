@@ -4,6 +4,13 @@ A small command-line client for a [leandc](../../README.md) server. One file, Py
 
 leandc speaks MCP. Some places can run scripts but have no MCP support, for example a chat sandbox or a CI job. `leandc-cli.py` reaches a leandc server over HTTPS from such a place: run commands, read, write and edit files, and copy files in both directions.
 
+## Getting the client
+
+- **Installed:** `pipx install git+https://github.com/asif-r-porosh/leandc` provides the `leandc-cli` command together with the `leandc` server.
+- **Copied:** the source is the single file `src/leandc/client.py` in this repository. A copy saved as `leandc-cli.py` on another machine (for example a chat sandbox) runs with `python3 leandc-cli.py`. No other file is needed.
+
+The two forms behave the same. The examples below use the copied form; the installed command takes the same arguments.
+
 ## Requirements
 
 - Python 3. The script is written for 3.8 and newer, and has been tested on 3.12 and 3.13.
@@ -11,12 +18,12 @@ leandc speaks MCP. Some places can run scripts but have no MCP support, for exam
 
 ## Setup
 
-1. Copy `leandc-cli.json.example` to `leandc-cli.json`, next to `leandc-cli.py`.
+1. Copy `leandc-cli.json.example` to `leandc-cli.json`, next to `leandc-cli.py`. An installed `leandc-cli` finds the file at `~/.config/leandc-cli/leandc-cli.json`.
 2. Put the connector URL in `url`. The URL has the form `https://<host>/<secret>/mcp`.
 3. Keep the file private (`chmod 600`). The secret is part of the URL. The file is git-ignored in this repository.
 4. Check the connection: `python3 leandc-cli.py ping`
 
-A different config file is chosen with `--config PATH` or the environment variable `LEANDC_CLI_CONFIG`. `LEANDC_CLI_URL` and `LEANDC_CLI_FALLBACK_URL` override the URL settings.
+The file is searched in this order: `--config PATH`, the environment variable `LEANDC_CLI_CONFIG`, next to the script, the current folder, `~/.config/leandc-cli/leandc-cli.json`. `LEANDC_CLI_URL` and `LEANDC_CLI_FALLBACK_URL` override the URL settings.
 
 | Key | Meaning |
 |---|---|
@@ -64,7 +71,7 @@ The text from the server goes to stdout. Messages from `leandc-cli.py` itself go
 python3 test_leandc-cli.py
 ```
 
-This runs the unit tests and the tests against fake servers. The tests against a real server run when `LEANDC_CLI_TEST_CONFIG` points to a config file for a scratch leandc:
+This runs the unit tests, the packaging checks and the tests against fake servers. The client under test is `src/leandc/client.py`. The tests against a real server run when `LEANDC_CLI_TEST_CONFIG` points to a config file for a scratch leandc:
 
 ```
 LEANDC_CLI_TEST_CONFIG=/path/to/leandc-cli.json python3 test_leandc-cli.py

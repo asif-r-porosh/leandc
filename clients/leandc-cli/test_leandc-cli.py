@@ -18,7 +18,7 @@ import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LC = os.path.join(HERE, "leandc-cli.py")
+LC = os.path.join(HERE, "..", "..", "src", "leandc", "client.py")   # the client is one file inside the package
 import importlib.util  # noqa: E402
 _spec = importlib.util.spec_from_file_location("leandc_cli", LC)
 lcmod = importlib.util.module_from_spec(_spec)
@@ -150,6 +150,60 @@ class UnitTests(unittest.TestCase):
                 lcmod.Config(bad)
             with self.assertRaises(lcmod.LcError):
                 lcmod.Config(write_config(d, project="p"))
+
+    def test_default_config_in_user_folder(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as empty:
+            folder = os.path.join(home, ".config", "leandc-cli")
+            os.makedirs(folder)
+            path = os.path.join(folder, "leandc-cli.json")
+            with open(path, "w") as fh:
+                json.dump({"url": "http://127.0.0.1:1/x"}, fh)
+            old = os.getcwd()
+            try:
+                os.chdir(empty)
+                with mock.patch.dict(os.environ, {"HOME": home}):
+                    os.environ.pop("LEANDC_CLI_CONFIG", None)
+                    self.assertEqual(os.path.realpath(lcmod.find_config(None)), os.path.realpath(path))
+                    # a file in the current folder wins over the user folder
+                    here = os.path.join(empty, "leandc-cli.json")
+                    with open(here, "w") as fh:
+                        json.dump({"url": "http://127.0.0.1:2/y"}, fh)
+                    self.assertEqual(os.path.realpath(lcmod.find_config(None)), os.path.realpath(here))
+            finally:
+                os.chdir(old)
+
+    def test_help_names_the_command_it_was_started_as(self):
+        from unittest import mock
+        with mock.patch.object(sys, "argv", ["/x/bin/leandc-cli"]):
+            self.assertEqual(lcmod.command_name(), "leandc-cli")
+        with mock.patch.object(sys, "argv", ["/x/leandc-cli.py"]):
+            self.assertEqual(lcmod.command_name(), "leandc-cli.py")
+        with mock.patch.object(sys, "argv", ["/x/python -m unittest"]):
+            self.assertEqual(lcmod.command_name(), "leandc-cli.py")
+
+
+class PackagingTests(unittest.TestCase):
+    """The client is one file inside the package, and the package installs both commands."""
+
+    def test_client_imports_nothing_from_leandc(self):
+        import ast
+        with open(LC, "r", encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    self.assertNotEqual(alias.name.split(".")[0], "leandc", "client.py must stay a standalone file")
+            if isinstance(node, ast.ImportFrom):
+                self.assertEqual(node.level, 0, "client.py must not use relative imports")
+                self.assertNotEqual((node.module or "").split(".")[0], "leandc", "client.py must stay a standalone file")
+
+    def test_pyproject_lists_both_commands(self):
+        path = os.path.join(HERE, "..", "..", "pyproject.toml")
+        with open(path, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn('leandc = "leandc.server:main"', text)
+        self.assertIn('leandc-cli = "leandc.client:main"', text)
 
 
 class FakeServerTests(unittest.TestCase):

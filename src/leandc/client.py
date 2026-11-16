@@ -4,7 +4,7 @@
 One file, Python standard library only (written for Python 3.8 and newer).
 Each call does the MCP handshake over HTTP, calls one leandc tool and prints leandc's text.
 
-Config: leandc-cli.json next to this file (or --config PATH, or $LEANDC_CLI_CONFIG). See leandc-cli.json.example.
+Config: leandc-cli.json next to this file (or --config PATH, or $LEANDC_CLI_CONFIG, or ~/.config/leandc-cli/leandc-cli.json). See leandc-cli.json.example.
 Commands: ping, help, run, job, read, write, edit, push, pull. Run `leandc-cli.py help` for details.
 
 Exit codes: 0 ok, 1 leandc reported an error, 2 leandc-cli could not do the call (config, network, usage).
@@ -51,7 +51,8 @@ class LcError(Exception):
 
 def find_config(explicit):
     here = os.path.dirname(os.path.abspath(__file__))
-    for path in (explicit, os.environ.get("LEANDC_CLI_CONFIG"), os.path.join(here, "leandc-cli.json"), "leandc-cli.json"):
+    user_default = os.path.join(os.path.expanduser("~"), ".config", "leandc-cli", "leandc-cli.json")
+    for path in (explicit, os.environ.get("LEANDC_CLI_CONFIG"), os.path.join(here, "leandc-cli.json"), "leandc-cli.json", user_default):
         if path and os.path.isfile(path):
             return path
     return None
@@ -289,8 +290,14 @@ def cmd_ping(c, a):
     return 0
 
 
+def command_name():
+    """The name this client was started as: leandc-cli (installed) or leandc-cli.py (a copied file)."""
+    name = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+    return name if name.startswith("leandc-cli") else "leandc-cli.py"
+
+
 def cmd_help(c, a):
-    print(USAGE.strip("\n"))
+    print(USAGE.strip("\n").replace("leandc-cli.py", command_name()))
     print("\nTools on this server:")
     for tool in c.list_tools():
         schema = tool.get("inputSchema") or {}
@@ -616,8 +623,8 @@ Relative remote paths sit under leandc's default folder (an optional "project" i
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="leandc-cli.py", description="Client for a leandc MCP server.", add_help=True)
-    p.add_argument("--config", help="path to leandc-cli.json (default: $LEANDC_CLI_CONFIG, leandc-cli.json next to this script, ./leandc-cli.json)")
+    p = argparse.ArgumentParser(prog=command_name(), description="Client for a leandc MCP server.", add_help=True)
+    p.add_argument("--config", help="path to leandc-cli.json (default: $LEANDC_CLI_CONFIG, leandc-cli.json next to this script, ./leandc-cli.json, ~/.config/leandc-cli/leandc-cli.json)")
     p.add_argument("--version", action="version", version="leandc-cli " + VERSION)
     sub = p.add_subparsers(dest="command", metavar="command")
     sub.required = True
