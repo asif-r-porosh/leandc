@@ -45,6 +45,7 @@ class FakeSystem(service.System):
         self.show = ""
         self.job = ""             # what `launchctl print` prints (Mac); empty: the job is not loaded
         self.pgrep = 1            # exit code of pgrep
+        self.dscl = ""            # what `dscl . -list /Groups PrimaryGroupID` prints (Mac)
         self.fail = set()         # command prefixes (tuples) that return 1
 
     def is_linux(self):
@@ -78,6 +79,8 @@ class FakeSystem(service.System):
             self.groups[service.GROUP] = 991
         if cmd[:2] == ["launchctl", "print"]:
             return subprocess.CompletedProcess(cmd, 0 if self.job else 113, self.job, "")
+        if cmd[:2] == ["dscl", "."]:
+            return subprocess.CompletedProcess(cmd, 0, self.dscl, "")
         if cmd[0] == "pgrep":
             return subprocess.CompletedProcess(cmd, self.pgrep, "", "")
         return subprocess.CompletedProcess(cmd, 0, "", "")
@@ -545,7 +548,7 @@ def test_mac_setup_creates_the_group_with_dseditgroup(mac, paths):
     mac.groups.clear()
     mac.on_edit = fill_host
     assert service.run_command(args("setup"), mac, paths) == 0
-    assert ["dseditgroup", "-o", "create", "-r", "leandc service", "leandc"] in mac.calls
+    assert ["dseditgroup", "-o", "create", "-r", "leandc service", "-i", "300", "leandc"] in mac.calls
     assert not any(c[0] == "groupadd" for c in mac.calls)
 
 
@@ -614,3 +617,18 @@ def test_find_binary_falls_back_to_the_full_path_it_was_started_with(fake, monke
     monkeypatch.setattr(service.sys, "argv", ["leandc", "start"])
     with pytest.raises(ServiceError, match="not found on PATH"):
         service.find_binary(fake)
+
+
+def test_mac_group_takes_the_first_free_service_gid(mac, paths):
+    mac.groups.clear()
+    mac.dscl = "_oahd 441\nsomething 300\nother 301\ncom.apple.x 399\n"
+    assert service.ensure_group(mac) == 991
+    assert ["dseditgroup", "-o", "create", "-r", "leandc service", "-i", "302", "leandc"] in mac.calls
+
+
+def test_a_group_that_does_not_appear_after_creation_is_reported(mac):
+    mac.groups.clear()
+    mac.run_original = mac.run
+    mac.run = lambda cmd: subprocess.CompletedProcess(cmd, 0, "", "")  # create "succeeds" but nothing appears
+    with pytest.raises(ServiceError, match="could not create the group leandc: no reason given"):
+        service.ensure_group(mac)

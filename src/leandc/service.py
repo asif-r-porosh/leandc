@@ -298,16 +298,31 @@ def write_atomic(system: System, path: Path, text: str, mode: int, owner: tuple[
     os.replace(tmp, path)
 
 
+def free_mac_gid(system: System) -> int | None:
+    """The first unused group id in 300 to 399, the range for service groups; None when the list cannot be read."""
+    out = system.run(["dscl", ".", "-list", "/Groups", "PrimaryGroupID"])
+    if out.returncode != 0:
+        return None
+    used = {int(line.split()[-1]) for line in out.stdout.splitlines() if line.split() and line.split()[-1].isdigit()}
+    return next((gid for gid in range(300, 400) if gid not in used), None)
+
+
 def ensure_group(system: System) -> int:
     gid = system.group_gid(GROUP)
     if gid is None:
         if system.is_mac():
-            result = system.run(["dseditgroup", "-o", "create", "-r", "leandc service", GROUP])
+            wanted = free_mac_gid(system)
+            cmd = ["dseditgroup", "-o", "create", "-r", "leandc service"] + (["-i", str(wanted)] if wanted else []) + [GROUP]
         else:
-            result = system.run(["groupadd", "--system", GROUP])
-        gid = system.group_gid(GROUP)
+            cmd = ["groupadd", "--system", GROUP]
+        result = system.run(cmd)
+        for _ in range(5):  # the Mac needs a moment before the new group shows up in lookups
+            gid = system.group_gid(GROUP)
+            if gid is not None or result.returncode != 0:
+                break
+            system.sleep(1)
         if result.returncode != 0 or gid is None:
-            raise ServiceError(f"could not create the group {GROUP}: {result.stderr.strip()}")
+            raise ServiceError(f"could not create the group {GROUP}: {(result.stderr or result.stdout).strip() or 'no reason given'}")
     return gid
 
 
