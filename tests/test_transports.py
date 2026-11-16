@@ -39,7 +39,7 @@ def write_config(tmp_path, body: str) -> str:
 
 
 async def test_stdio_roundtrip(tmp_path):
-    cfg = write_config(tmp_path, 'target = "mac"\n')
+    cfg = write_config(tmp_path, 'transport = "stdio"\n')
     params = StdioServerParameters(command=sys.executable, args=["-m", "leandc.server", "serve", "--config", cfg])
     async with Client(params) as c:
         tools = {t.name for t in (await c.list_tools()).tools}
@@ -55,7 +55,7 @@ def http_server(tmp_path):
     port = free_port()
     cfg = write_config(
         tmp_path,
-        f'target = "vm"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
+        f'transport = "http"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
     )
     proc = subprocess.Popen(
         [sys.executable, "-m", "leandc.server", "serve", "--config", cfg],
@@ -111,13 +111,13 @@ def test_http_wrong_host_and_path(http_server):
 
 
 def test_http_refuses_weak_secret(tmp_path):
-    cfg = write_config(tmp_path, 'target = "vm"\n[http]\npath_secret = "short"\nallowed_hosts = ["x.test"]\n')
+    cfg = write_config(tmp_path, 'transport = "http"\n[http]\npath_secret = "short"\nallowed_hosts = ["x.test"]\n')
     p = subprocess.run([sys.executable, "-m", "leandc.server", "serve", "--config", cfg], capture_output=True, text=True, timeout=30)
     assert p.returncode == 2 and "path_secret" in p.stderr
 
 
 def test_http_refuses_empty_allowed_hosts(tmp_path):
-    cfg = write_config(tmp_path, f'target = "vm"\n[http]\npath_secret = "{SECRET}"\n')
+    cfg = write_config(tmp_path, f'transport = "http"\n[http]\npath_secret = "{SECRET}"\n')
     p = subprocess.run([sys.executable, "-m", "leandc.server", "serve", "--config", cfg], capture_output=True, text=True, timeout=30)
     assert p.returncode == 2 and "allowed_hosts" in p.stderr
 

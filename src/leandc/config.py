@@ -46,7 +46,7 @@ class LogConfig:
 
 @dataclass(frozen=True)
 class Config:
-    target: str = "vm"
+    transport: str = "http"
     default_cwd: str = field(default_factory=lambda: str(Path.home()))
     shell: str = "bash"
     state_dir: str = field(default_factory=lambda: str(Path.home() / ".local" / "state" / "leandc"))
@@ -118,8 +118,8 @@ def load_config(path: str | os.PathLike[str] | None = None) -> Config:
             raise ConfigError(f"[{name}] must be a table")
         parts[name] = _build(cls, section, name)
     cfg = replace(cfg, **parts)
-    if cfg.target not in {"vm", "mac"}:
-        raise ConfigError("target must be 'vm' or 'mac'")
+    if cfg.transport not in {"stdio", "http"}:
+        raise ConfigError("transport must be 'stdio' or 'http'")
     if cfg.caps.run_default_chars > cfg.caps.run_max_chars:
         raise ConfigError("caps.run_default_chars exceeds caps.run_max_chars")
     if cfg.caps.sync_default_s > cfg.caps.sync_max_s:

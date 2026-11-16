@@ -42,7 +42,7 @@ MIN_SECRET_LEN = 24
 def info_line(cfg: Config, facts: dict[str, str]) -> str:
     """The one-line environment summary carried in the `run` description."""
     caps = cfg.caps
-    bits = [f"leandc {__version__} target={cfg.target}", f"default cwd {cfg.default_cwd}"]
+    bits = [f"leandc {__version__} transport={cfg.transport}", f"default cwd {cfg.default_cwd}"]
     if facts.get("bash"):
         bits.append(f"bash {facts['bash']}")
     if facts.get("python"):
@@ -334,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name, help=help_)
         p.add_argument("--config", help="path to config.toml (default: $LEANDC_CONFIG, else built-in defaults)")
         if name == "serve":
-            p.add_argument("--transport", choices=["stdio", "http"], help="default: stdio for target=mac, http for target=vm")
+            p.add_argument("--transport", choices=["stdio", "http"], help="default: the transport set in the config")
             p.add_argument("--ignore-check", action="store_true", help="start even if the self-check fails")
     sub.add_parser("secret", help="print a new random URL path secret")
     sub.add_parser("version", help="print the version")
@@ -356,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         report = run_check(cfg)
         print(report.render())
         return 1 if report.failed else 0
-    transport = args.transport or ("stdio" if cfg.target == "mac" else "http")
+    transport = args.transport or cfg.transport
     try:
         return serve(cfg, transport, args.ignore_check)
     except ConfigError as exc:
