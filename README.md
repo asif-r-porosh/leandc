@@ -43,7 +43,7 @@ The command installs two programs: `leandc` (the server) and `leandc-cli` (the [
 
 ### As a service on Linux (systemd)
 
-The service commands run the program as root, so the install must be for all users:
+The service commands run the program as root, so the install must be for all users. `--global` needs pipx 1.5.0 or newer. Ubuntu 24.04 ships pipx 1.4.3: use the standalone program instead (`curl -fsSL -o pipx.pyz https://github.com/pypa/pipx/releases/latest/download/pipx.pyz`, then `sudo python3 pipx.pyz install --global ...` in place of `sudo pipx install --global ...`).
 
 ```bash
 sudo pipx install --global git+https://github.com/asif-r-porosh/leandc
@@ -129,30 +129,7 @@ sudo leandc stop       # stops now and at boot
 
    **e.** Run with `~/.local/share/leandc/venv/bin/leandc serve`.
 
-   To make the service persistent, use the supplied `systemd` unit, [deploy/leandc.service](https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service). Run the commands below from a folder that contains `deploy/leandc.service`:
-
-   - **Installed from a clone** (`./manual-install.sh`): run the commands from the clone's root. The unit is already in the `deploy/` folder.
-   - **Installed with the `curl ... | bash` one-liner:** no clone is kept, so download the unit first:
-
-     ```bash
-     mkdir -p deploy && curl -fsSL -o deploy/leandc.service https://raw.githubusercontent.com/asif-r-porosh/leandc/refs/heads/main/deploy/leandc.service
-     ```
-
-   Then:
-
-   ```bash
-   sed -e "s|/home/youruser|$HOME|g" -e "s|youruser|$(id -un)|g" deploy/leandc.service > /tmp/leandc.service \
-    && sudo install -m 644 /tmp/leandc.service /etc/systemd/system/leandc.service \
-    && rm /tmp/leandc.service \
-    && sudo systemctl daemon-reload && sudo systemctl enable --now leandc
-   systemctl status leandc --no-pager | head -5
-   ```
-
-   _The `sed` fills in the current username and home directory._
-
-   The service restarts on failure and starts at boot. Logs: `journalctl -u leandc`.
-
-   Leave `KillMode` at the default (`control-group`): the jobs are killed by `leandc` on stop, and stray children must not outlive the service.
+   To make the service persistent on Linux, use the systemd commands in [As a service on Linux (systemd)](#as-a-service-on-linux-systemd): `sudo leandc setup`, then `sudo leandc start`. The commands write the unit file and a root-owned config, so no hand-made unit is needed. Logs: `journalctl -u leandc`.
 
 5. In claude.ai, Settings → Connectors → Add custom connector, URL `https://leandc.example.com/<the_generated_secret>/mcp`; leave OAuth empty; ask Claude to run hostname.
 
@@ -203,7 +180,7 @@ The usage log (`~/.local/state/leandc/usage.jsonl`, rotated by size) holds metad
 
 ## Uninstall
 
-Delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. On a server first run `sudo systemctl disable --now leandc && sudo rm /etc/systemd/system/leandc.service` (if `systemd` unit is used).
+Delete `~/.local/share/leandc`, `~/.config/leandc` and `~/.local/state/leandc`. On a server that runs the service, first follow "Removal by hand" under [As a service on Linux (systemd)](#as-a-service-on-linux-systemd).
 
 ## Troubleshooting
 

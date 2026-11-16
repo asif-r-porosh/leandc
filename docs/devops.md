@@ -7,10 +7,10 @@ leandc runs commands and edits files as the user that starts the server. A dedic
 1. Create a user with no admin rights. The command below adds no extra groups:
 
    ```
-   sudo useradd --create-home --shell /bin/bash leandc
+   sudo useradd --create-home --shell /bin/bash leandcrun
    ```
 
-2. Install leandc as that user (`./install.sh`), then follow the systemd steps in the README. In `deploy/leandc.service`, `User=` and the paths are those of the dedicated user.
+2. Install leandc for all users and start the service as that user, as in the README section "As a service on Linux (systemd)": `sudo leandc setup`, then `sudo leandc start leandcrun`. Pick a user name other than `leandc`, because the service commands create a group of that name.
 3. Give the user no private SSH keys, no agent and no `sudo`.
 
 ## macOS

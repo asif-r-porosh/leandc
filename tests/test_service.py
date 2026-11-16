@@ -471,12 +471,11 @@ def test_the_new_subcommands_are_wired_into_main(fake, monkeypatch, capsys):
         server.main(["start", "alice", "extra"])
 
 
-def test_the_unit_template_matches_the_deploy_template_rules():
+def test_the_unit_template_keeps_its_stop_and_restart_rules():
     unit = service.UNIT.format(user="u", group="g", binary="/b/leandc", config="/c/config.toml")
-    deploy = (Path(__file__).resolve().parent.parent / "deploy" / "leandc.service").read_text()
     for line in ("KillMode=control-group", "TimeoutStopSec=15", "Restart=on-failure", "RestartSec=3",
                  "After=network-online.target", "WantedBy=multi-user.target"):
-        assert line in unit and line in deploy
+        assert line in unit
 
 
 def test_the_real_system_class_basics(tmp_path):
