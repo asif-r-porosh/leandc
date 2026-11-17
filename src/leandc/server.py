@@ -14,7 +14,7 @@ import secrets
 import shutil
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -310,6 +310,7 @@ GRACEFUL_STOP_SECONDS = 3  # must stay well under TimeoutStopSec (15 s) in the s
 
 
 def serve(cfg: Config, transport: str, ignore_check: bool = False) -> int:
+    cfg = replace(cfg, transport=transport)  # --transport overrides the config: the tool descriptions must show what runs
     report = run_check(cfg)
     print(report.render(), file=sys.stderr)
     if report.failed and not ignore_check:

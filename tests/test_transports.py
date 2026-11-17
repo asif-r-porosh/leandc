@@ -171,3 +171,44 @@ def test_http_stop_wait_is_bounded_below_the_unit_limit(tmp_path, monkeypatch):
     assert wait == server.GRACEFUL_STOP_SECONDS
     limit = int(service.UNIT.split("TimeoutStopSec=")[1].split()[0])
     assert 0 < wait < limit
+
+
+def test_the_run_description_names_the_transport_that_runs_not_the_one_in_the_config(tmp_path, monkeypatch):
+    """`--transport stdio` on a config that says http (and the reverse) must not leave a wrong label."""
+    import uvicorn
+    from types import SimpleNamespace
+    from leandc import server
+    from leandc.config import load_config
+
+    seen = []
+
+    def fake_build(cfg, facts):
+        seen.append(cfg.transport)
+        return SimpleNamespace(server=SimpleNamespace(
+            run=lambda kind: None,
+            streamable_http_app=lambda **kw: None,
+        ))
+
+    class FakeServer:
+        def __init__(self, config):
+            pass
+
+        async def serve(self):
+            return None
+
+    monkeypatch.setattr(server, "build_server", fake_build)
+    monkeypatch.setattr(uvicorn, "Server", FakeServer)
+    port = free_port()
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    http_cfg = load_config(write_config(
+        tmp_path / "a",
+        f'transport = "http"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
+    ))
+    assert server.serve(http_cfg, "stdio") == 0
+    stdio_cfg = load_config(write_config(
+        tmp_path / "b",
+        f'transport = "stdio"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
+    ))
+    assert server.serve(stdio_cfg, "http") == 0
+    assert seen == ["stdio", "http"]
