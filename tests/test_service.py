@@ -641,3 +641,10 @@ def test_a_window_editor_is_skipped_for_a_terminal_editor(fake, capsys):
     assert "window editor" in capsys.readouterr().err
     fake.env["EDITOR"] = "vim"
     assert service.pick_editor(fake) == ["vim"]
+
+
+def test_headers_say_what_is_true_about_who_can_change_the_config():
+    personal = (Path(service.__file__).parent / "config.example.toml").read_text()
+    assert "No tool can change" not in personal and "is not locked" in personal
+    served = service.render_template()
+    assert "owned by root" in served and "is not locked" not in served and "No tool can change" not in served

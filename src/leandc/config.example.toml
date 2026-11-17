@@ -1,5 +1,7 @@
 # leandc config. Copy to a private place (chmod 600) and point LEANDC_CONFIG or --config at it.
-# No tool can change this file. Unknown keys are rejected at startup.
+# Read once at startup. A tool call cannot change it, but run, write and edit can edit any file the user owns,
+# so a personal config like this one is not locked. For a locked config use the service: sudo leandc setup (config in /etc/leandc).
+# Unknown keys are rejected at startup.
 
 transport = "http"                 # "http": HTTPS behind a TLS proxy.  "stdio": stdio only, never listens.
 default_cwd = "~"                  # where run starts when the caller passes no cwd; relative paths resolve here

@@ -232,6 +232,8 @@ def render_template() -> str:
     secret = secrets.token_urlsafe(32)
     steps: tuple[tuple[str, Any], ...] = (
         (r"^# leandc config\..*$", "# leandc service config. Edit it with: sudo leandc setup"),
+        (r"^# Read once at startup\..*\n# so a personal config.*$",
+         "# Read once at startup. The file is owned by root: the service runs as a normal user and cannot change it."),
         (r'^(path_secret = )""', lambda m: f'{m.group(1)}"{secret}"'),
         (r'^(state_dir = )"[^"]*"', lambda m: f'{m.group(1)}"{STATE_DIR}"'),
         (r"^(allowed_hosts = )\[[^\]]*\]", lambda m: f"{m.group(1)}[]"),

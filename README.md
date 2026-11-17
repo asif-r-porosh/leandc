@@ -195,7 +195,7 @@ The usage log (`~/.local/state/leandc/usage.jsonl`, rotated by size) holds metad
 
 ## Configuration
 
-`src/leandc/config.example.toml` lists every key with the default. Unknown keys are rejected at startup, and no tool can change the config file. `LEANDC_CONFIG` or `--config` selects the file; `LEANDC_PATH_SECRET` can supply the secret instead of the file. The `[caps]` section holds the output, read, timeout and buffer limits.
+`src/leandc/config.example.toml` lists every key with the default. Unknown keys are rejected at startup, and the server never changes the config file itself. `run`, `write` and `edit` can still edit a config that the runner owns; the service config in `/etc/leandc` is owned by root and locked. `LEANDC_CONFIG` or `--config` selects the file; `LEANDC_PATH_SECRET` can supply the secret instead of the file. The `[caps]` section holds the output, read, timeout and buffer limits.
 
 ## Uninstall
 

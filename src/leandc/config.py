@@ -1,4 +1,4 @@
-"""Configuration: a TOML file read at startup. No tool can change it."""
+"""Configuration: a TOML file read at startup. The server never changes it itself."""
 from __future__ import annotations
 
 import os
