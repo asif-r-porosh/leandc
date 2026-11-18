@@ -2,31 +2,16 @@
 
 **A Lightweight MCP Server for Local & Remote Development**
 
-LeanDC is a small MCP (Model Context Protocol) tool server. It gives an MCP client five tools to run commands, read, write and edit files, and manage long-running jobs, on a Mac or a Linux machine.
+LeanDC is a small MCP (Model Context Protocol) tool server. It gives an MCP client five tools to run commands, read, write and edit files, and manage long-running jobs, on a Mac or a Linux machine. It was inspired by [Desktop Commander MCP](https://github.com/wonderwhy-er/DesktopCommanderMCP) and benchmarked against it (see [Benchmark](#benchmark)).
 
 Five tools: **`run` | `job` | `read` | `write` | `edit`**
 
 Two ways to use it:
 
-- **On this machine (stdio):** the client starts LeanDC itself. Nothing is exposed to the network.
-- **From anywhere (HTTPS):** LeanDC runs as a service on a Mac or a Linux machine, and the client reaches it through a URL.
+- **Local (stdio):** the client starts LeanDC itself on the same machine. Nothing is exposed to the network.
+- **Remote (HTTPS):** LeanDC runs as a service on a Mac or a Linux machine, and the client reaches it through a URL.
 
 Tested with the Claude desktop app (local) and a claude.ai custom connector (remote), on macOS (Apple Silicon and Intel) and Ubuntu. Any client that speaks MCP over stdio or streamable HTTP should work; no other client has been tested.
-
-## Compared with Desktop Commander
-
-LeanDC was inspired by [Desktop Commander MCP](https://github.com/wonderwhy-er/DesktopCommanderMCP), a well-known tool server for the same job, so that is what LeanDC was measured against.
-
-| | Desktop Commander 0.3.1 | LeanDC |
-|---|---|---|
-| Tools | 25 | 5 |
-| Tool descriptions | about 13,500 tokens | about 2,100 tokens |
-
-In a benchmark of 11 development tasks run in Claude Code, LeanDC used 37% to 90% fewer tokens, and every run passed the task check. Method and results: [bench/](https://github.com/asif-r-porosh/leandc/blob/main/bench/README.md).
-
-Desktop Commander covers more ground. Pick it when its wider feature set is needed; pick LeanDC when five tools are enough and a light footprint matters.
-
-The benchmark ran in Claude Code and reflects those conditions only, not a projection for other clients. It measures tokens only and makes no claim about cost or about any plan's usage allowance.
 
 ## Requirements
 
@@ -43,7 +28,7 @@ pipx install git+https://github.com/asif-r-porosh/leandc
 
 This installs `leandc` (the server) and `leandc-cli` (the [client](clients/leandc-cli/README.md)). To update, run `pipx install --force git+https://github.com/asif-r-porosh/leandc` again.
 
-## Use on this machine (stdio)
+## Local use (stdio)
 
 No config file is needed. The client starts LeanDC itself.
 
@@ -81,22 +66,19 @@ sudo leandc stop      # stops now and at boot
 
 ### What the defaults do
 
-If the commands above are run as they are, this is what happens:
+If the commands above are run as they are, the install puts the program files under root's ownership, so nobody without sudo can change the code that `sudo leandc` runs. `setup` then creates the config `/etc/leandc/config.toml`, owned by root and holding a fresh secret, together with a group named `leandc`. The service can read the config and cannot change it. The editor is `$VISUAL`, `$EDITOR`, nano or vi, and a file is installed only after it passes the same checks the server runs. `sudo leandc setup --show` prints the config with the secret hidden.
 
-- **The install** with `sudo ... --global` puts the program files under root's ownership. Nobody without sudo can change the code that `sudo leandc` runs.
-- **`setup`** creates the config `/etc/leandc/config.toml`, owned by root, with a fresh secret. The service can read the config and cannot change it. `setup` also creates a group named `leandc` for that purpose. The editor is `$VISUAL`, `$EDITOR`, nano or vi. A file is installed only after it passes the same checks the server runs. `sudo leandc setup --show` prints the config with the secret hidden.
-- **`start`** runs the service as the user who ran `sudo`, writes the service file (Linux: `/etc/systemd/system/leandc.service`; Mac: `/Library/LaunchDaemons/net.leandc.service.plist`), and starts the service now and at every boot. State is kept in `/var/lib/leandc`.
-- **`stop`** stops the service and removes the boot start.
-- **`status`** shows whether the service runs, which user runs it, and whether the config is protected. With sudo it adds the transport and port.
-- **Logs:** Linux `journalctl -u leandc`; Mac `/var/log/leandc.log` (not rotated).
+`start` runs the service as the user who ran `sudo`, writes the service file (Linux: `/etc/systemd/system/leandc.service`; Mac: `/Library/LaunchDaemons/net.leandc.service.plist`), and starts the service now and at every boot. State is kept in `/var/lib/leandc`. `stop` stops the service and removes the boot start. `status` needs no sudo and shows whether the service runs, which user runs it and whether the config is protected; with sudo it adds the transport and port. Logs: Linux `journalctl -u leandc`; Mac `/var/log/leandc.log` (not rotated).
 
 ### When the defaults are not wanted
 
-- **A different user.** The recommended way is a separate limited user, `sudo leandc start alice`. How to create one is under [Security](#security).
-- **A user install instead of `--global`.** Fine for stdio. For the service, `--global` is recommended, because root runs the commands.
-- **No service at all.** Run `leandc serve --config /path/to/config.toml` under any supervisor (systemd, launchd, tmux). The recommended way is to keep the config private (`chmod 600`) and, for `http`, to put the secret in `LEANDC_PATH_SECRET` instead of the file.
+The recommended way to run as a different user is a separate limited user: `sudo leandc start alice`. How to create one is described under [Security](#security).
 
-## Use from anywhere (HTTPS)
+A user install (without `--global`) is fine for stdio. For the service, `--global` is recommended, because root runs the commands.
+
+To skip the service entirely, run `leandc serve --config /path/to/config.toml` under any supervisor (systemd, launchd, tmux). The recommended way is to keep the config private (`chmod 600`) and, for `http`, to put the secret in `LEANDC_PATH_SECRET` instead of the file.
+
+## Remote use (HTTPS)
 
 1. **Choose the hostname** the client will call, for example `leandc.example.com`.
 2. **Start the service** as above. In `setup`, set `allowed_hosts` to that hostname and keep `transport = "http"`:
@@ -111,32 +93,37 @@ If the commands above are run as they are, this is what happens:
    allowed_hosts = ["leandc.example.com"]
    ```
 
-3. **Give the machine an https address.** LeanDC itself speaks plain HTTP on `127.0.0.1:8765`; something in front of it provides https. Either way works:
-   - **A tunnel** such as Cloudflare Tunnel. No open ports and no public IP are needed. Point the tunnel at `http://127.0.0.1:8765`. Calls of up to 118 seconds were checked through a Cloudflare Tunnel.
-   - **A reverse proxy** such as Caddy or nginx, on a machine with a public DNS name and ports 80 and 443 open. A Caddy example:
+3. **Give the machine an https address.** LeanDC itself speaks plain HTTP on `127.0.0.1:8765`, so something in front of it has to provide https. Two ways work equally well.
 
-     ```
-     leandc.example.com {
-         reverse_proxy 127.0.0.1:8765 {
-             flush_interval -1
-         }
-     }
-     ```
+   A tunnel, such as Cloudflare Tunnel, needs no open ports and no public IP. Point the tunnel at `http://127.0.0.1:8765`. Calls of up to 118 seconds were checked through a Cloudflare Tunnel.
 
-     Use `flush_interval -1`, and add no `log` directive for the site, so the secret in the URL is not logged.
+   A reverse proxy, such as Caddy or nginx, needs a machine with a public DNS name and ports 80 and 443 open. A Caddy example:
 
-   Notes: `run` waits at most **120 seconds** and then returns a job id, so anything in front of LeanDC must allow requests at least that long. With Cloudflare, use a one-level hostname (the free certificate covers one level only); with a Cloudflare DNS record in front of a reverse proxy, set the record to DNS only, because the orange-cloud proxy cuts requests at about 100 seconds.
+   ```
+   leandc.example.com {
+       reverse_proxy 127.0.0.1:8765 {
+           flush_interval -1
+       }
+   }
+   ```
+
+   Use `flush_interval -1`, and add no `log` directive for the site, so the secret in the URL is not logged.
+
+   Two notes. `run` waits at most **120 seconds** and then returns a job id, so anything in front of LeanDC must allow requests at least that long. With Cloudflare, use a one-level hostname (the free certificate covers one level only); with a Cloudflare DNS record in front of a reverse proxy, set the record to DNS only, because the orange-cloud proxy cuts requests at about 100 seconds.
 4. **Add the URL to the client:** `https://leandc.example.com/<the_generated_secret>/mcp`. The secret is the `path_secret` line in `/etc/leandc/config.toml` (`sudo cat` shows it). In claude.ai: Settings → Connectors → Add custom connector, paste the URL, leave OAuth empty, and ask Claude to run `hostname`. Other clients take the same URL as a streamable HTTP server.
 
 ## Security
 
 The only protection is one long secret in the URL plus the allowed-hosts check. Anyone who learns the URL gets a shell as the user that runs LeanDC. Treat the URL like a password.
 
-**Recommended: run the service as a separate limited user**, not the user that installed LeanDC. A leaked URL or a bad command then reaches only what that user can reach.
+**Recommended: run the service as a separate limited user**, not the user that installed LeanDC. A leaked URL or a bad command then reaches only what that user can reach. On Linux, create the user and start the service as it. The command adds no extra groups; pick a name other than `leandc`, because `setup` creates a group of that name:
 
-- Linux: `sudo useradd --create-home --shell /bin/bash leandcrun`, then `sudo leandc start leandcrun`. The command adds no extra groups. Pick a name other than `leandc`, because `setup` creates a group of that name.
-- Mac: create a standard (non-admin) user in System Settings → Users & Groups, then `sudo leandc start thatuser`.
-- Give that user no private SSH keys, no ssh agent and no `sudo`.
+```bash
+sudo useradd --create-home --shell /bin/bash leandcrun
+sudo leandc start leandcrun
+```
+
+On a Mac, create a standard (non-admin) user in System Settings → Users & Groups, then run `sudo leandc start thatuser`. On either system, give that user no private SSH keys, no ssh agent and no `sudo`.
 
 **Install with sudo (`--global`)**, so the program files belong to root and nothing a user or a tricked client can reach is able to change the code that `sudo leandc` runs.
 
@@ -145,6 +132,21 @@ The only protection is one long secret in the URL plus the allowed-hosts check. 
 LeanDC's own HTTP access log is off, so the secret is not written to the service log. To rotate the secret: `leandc secret`, put the new value into the config with `sudo leandc setup`, restart the service (Linux: `sudo systemctl restart leandc`; macOS: `sudo leandc start`), and update the client URL.
 
 See [SECURITY.md](SECURITY.md) for the reasoning.
+
+## Benchmark
+
+Desktop Commander MCP is a well-known tool server for the same job, so LeanDC was measured against it.
+
+| | Desktop Commander 0.3.1 | LeanDC |
+|---|---|---|
+| Tools | 25 | 5 |
+| Tool descriptions | about 13,500 tokens | about 2,100 tokens |
+
+In a benchmark of 11 development tasks run in Claude Code, LeanDC used 37% to 90% fewer tokens, and every run passed the task check. Method and results: [bench/](https://github.com/asif-r-porosh/leandc/blob/main/bench/README.md).
+
+Desktop Commander covers more ground. Pick it when its wider feature set is needed; pick LeanDC when five tools are enough and a light footprint matters.
+
+The benchmark ran in Claude Code and reflects those conditions only, not a projection for other clients. It measures tokens only and makes no claim about cost or about any plan's usage allowance.
 
 ## Reference
 
