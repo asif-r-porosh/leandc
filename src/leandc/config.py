@@ -35,6 +35,8 @@ class HttpConfig:
     port: int = 8765
     path_secret: str = ""
     allowed_hosts: tuple[str, ...] = ()
+    # Browser origins accepted on the HTTP endpoint. A key in the config replaces this list.
+    allowed_origins: tuple[str, ...] = ("https://claude.ai", "https://claude.com")
 
 
 @dataclass(frozen=True)
@@ -59,7 +61,7 @@ class Config:
 
 
 _SECTIONS: dict[str, type] = {"caps": Caps, "http": HttpConfig, "log": LogConfig}
-_TUPLE_KEYS = {"allowed_roots", "required_commands", "recommended_commands", "allowed_hosts"}
+_TUPLE_KEYS = {"allowed_roots", "required_commands", "recommended_commands", "allowed_hosts", "allowed_origins"}
 
 
 def _expand(value: str) -> str:

@@ -117,6 +117,16 @@ def test_load_config_overrides(tmp_path):
     assert cfg.allowed_roots == ("/tmp",)
 
 
+def test_allowed_origins_default_and_override(tmp_path):
+    assert Config().http.allowed_origins == ("https://claude.ai", "https://claude.com")
+    p = tmp_path / "c.toml"
+    p.write_text('[http]\nallowed_origins = ["https://app.example.test"]\n')
+    assert load_config(p).http.allowed_origins == ("https://app.example.test",)
+    p.write_text('[http]\nallowed_origins = "https://app.example.test"\n')
+    with pytest.raises(ConfigError, match="allowed_origins"):
+        load_config(p)
+
+
 def test_unknown_key_rejected(tmp_path):
     p = tmp_path / "c.toml"
     p.write_text("bogus = 1\n")

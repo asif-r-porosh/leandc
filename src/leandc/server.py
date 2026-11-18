@@ -287,7 +287,7 @@ def check_http(secret: str, allowed_hosts: tuple[str, ...]) -> None:
             f"http.path_secret must be at least {MIN_SECRET_LEN} characters without '/'; generate one with: leandc secret"
         )
     if not allowed_hosts:
-        raise ConfigError("http.allowed_hosts is empty: list the public hostname claude.ai will call")
+        raise ConfigError("http.allowed_hosts is empty: list the public hostname the client will call")
 
 
 def _http_settings(cfg: Config) -> tuple[str, TransportSecuritySettings]:
@@ -301,7 +301,7 @@ def _http_settings(cfg: Config) -> tuple[str, TransportSecuritySettings]:
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=hosts,
-        allowed_origins=["https://claude.ai", "https://claude.com"],
+        allowed_origins=list(cfg.http.allowed_origins),
     )
     return secret, security
 

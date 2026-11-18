@@ -1,4 +1,5 @@
 """Real transports: stdio subprocess and streamable HTTP on localhost (secret path)."""
+import contextlib
 import socket
 import subprocess
 import sys
@@ -50,12 +51,13 @@ async def test_stdio_roundtrip(tmp_path):
         assert bad.is_error and text(bad).startswith("ERROR BAD_PARAM")
 
 
-@pytest.fixture
-def http_server(tmp_path):
+@contextlib.contextmanager
+def running_http(tmp_path, extra_http: str = ""):
+    """Start `leandc serve` over HTTP on a free port; `extra_http` adds lines to the [http] section."""
     port = free_port()
     cfg = write_config(
         tmp_path,
-        f'transport = "http"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n',
+        f'transport = "http"\n[http]\nport = {port}\npath_secret = "{SECRET}"\nallowed_hosts = ["127.0.0.1:{port}"]\n{extra_http}',
     )
     proc = subprocess.Popen(
         [sys.executable, "-m", "leandc.server", "serve", "--config", cfg],
@@ -74,12 +76,20 @@ def http_server(tmp_path):
     else:
         proc.kill()
         raise RuntimeError("server did not start")
-    yield port, proc
-    proc.terminate()
     try:
-        proc.wait(5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        yield port, proc
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+@pytest.fixture
+def http_server(tmp_path):
+    with running_http(tmp_path) as server:
+        yield server
 
 
 async def test_http_roundtrip(http_server):
@@ -90,10 +100,12 @@ async def test_http_roundtrip(http_server):
         assert "over-http" in text(res)
 
 
-def _post(port: int, path: str, host: str | None) -> int:
+def _post(port: int, path: str, host: str | None, origin: str | None = None) -> int:
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     conn.putrequest("POST", path, skip_host=True)
     conn.putheader("Host", host or f"127.0.0.1:{port}")
+    if origin:
+        conn.putheader("Origin", origin)
     conn.putheader("Accept", "application/json, text/event-stream")
     conn.putheader("Content-Type", "application/json")
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}).encode()
@@ -108,6 +120,21 @@ def test_http_wrong_host_and_path(http_server):
     port, _ = http_server
     assert _post(port, f"/{SECRET}/mcp", "evil.example") == 421
     assert _post(port, "/wrong/mcp", None) == 404
+
+
+def test_http_origin_defaults_to_the_claude_sites(http_server):
+    port, _ = http_server
+    path = f"/{SECRET}/mcp"
+    assert _post(port, path, None, "https://claude.ai") != 403
+    assert _post(port, path, None, "https://other.example") == 403
+    assert _post(port, path, None) != 403  # a client that sends no Origin header (not a browser) is not blocked
+
+
+def test_http_origin_list_in_the_config_replaces_the_default(tmp_path):
+    with running_http(tmp_path, 'allowed_origins = ["https://app.example.test"]\n') as (port, _):
+        path = f"/{SECRET}/mcp"
+        assert _post(port, path, None, "https://app.example.test") != 403
+        assert _post(port, path, None, "https://claude.ai") == 403
 
 
 def test_http_refuses_weak_secret(tmp_path):
