@@ -109,7 +109,7 @@ To skip the service entirely, run `leandc serve --config /path/to/config.toml` u
 
    Use `flush_interval -1`, and add no `log` directive for the site, so the secret in the URL is not logged.
 
-   Two notes. `run` waits at most **120 seconds** and then returns a job id, so anything in front of LeanDC must allow requests at least that long. With Cloudflare, use a one-level hostname (the free certificate covers one level only); with a Cloudflare DNS record in front of a reverse proxy, set the record to DNS only, because the orange-cloud proxy cuts requests at about 100 seconds.
+   Two notes. `run` waits at most **120 seconds** and then returns a job id, so anything in front of LeanDC must allow requests at least that long. With Cloudflare, use a one-level hostname (the free certificate covers one level only). Cloudflare's proxy also stops waiting for an answer after its read timeout, which its documentation gives as 120 seconds by default (older pages say 100). A `run` that waits the full 120 seconds sits right at that limit; a `timeout` of 90 or less, followed by `job` for the rest, stays clear of it. With a Cloudflare DNS record in front of a reverse proxy, a DNS-only record skips the proxy and its limit.
 4. **Add the URL to the client:** `https://leandc.example.com/<the_generated_secret>/mcp`. The secret is the `path_secret` line in `/etc/leandc/config.toml` (`sudo cat` shows it). In claude.ai: Settings → Connectors → Add custom connector, paste the URL, leave OAuth empty, and ask Claude to run `hostname`. Other clients take the same URL as a streamable HTTP server.
 
 ## Security
