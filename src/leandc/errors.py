@@ -1,7 +1,7 @@
 """One-line, accurate errors.
 
 Every failure a tool can anticipate is raised through `fail()`. The SDK hides the
-text of any other exception, so a bare exception would reach Claude as an opaque
+text of any other exception, so a bare exception would reach the client as an opaque
 "Error executing tool X" and cause blind retries.
 """
 from __future__ import annotations

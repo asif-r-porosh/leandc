@@ -71,7 +71,7 @@ Nothing is weighted: the last row is a plain sum of the 11 task medians.
 
 ## Run the benchmark
 
-Needs: the `claude` CLI logged in, `git`, `python3` 3.12 or newer, `node` with `npx` (Desktop Commander is started with npx), and LeanDC installed (`./install.sh`). A full run uses part of the usage allowance of the logged-in Claude account: 99 sessions, about 25 minutes, roughly five million tokens counted as above. Keep the machine awake.
+Needs: the `claude` CLI logged in, `git`, `python3` 3.12 or newer, `node` with `npx` (Desktop Commander is started with npx), and LeanDC installed (`pipx install` from this checkout; see the main README). A full run uses part of the usage allowance of the logged-in Claude account: 99 sessions, about 25 minutes, roughly five million tokens counted as above. Keep the machine awake.
 
 ```
 bench/setup.sh                                  # builds ~/.cache/leandc-bench (LEANDC_BENCH_HOME to move the folder)

@@ -2,7 +2,7 @@
 
 leandc uses what the OS ships, so this only *insists* on bash and on a
 writable state dir. Everything else is information: which OS and userland flavor
-(Claude writes commands for it), and which optional tools happen to be installed.
+(the model writes commands for it), and which optional tools happen to be installed.
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def run_check(cfg: Config) -> Report:
     env = build_env(cfg, None)
     path = env["PATH"]
 
-    # --- what Claude needs to know to write commands
+    # --- what the model needs to know to write commands
     rep.facts["os"] = _os_name()
     rep.facts["flavor"] = _flavor(env)
     rep.add(INFO, "os", f"{rep.facts['os']} {platform.machine()}")

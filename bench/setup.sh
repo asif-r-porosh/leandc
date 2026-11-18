@@ -11,8 +11,11 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="${LEANDC_BENCH_HOME:-$HOME/.cache/leandc-bench}"
 FIXTURE_REF="${FIXTURE_REF:-3000e65}"   # pinned: the verifiers expect this snapshot (131 tests, shaping.py = 109 lines, cmdnames.py as of then)
 DC_VERSION="${DC_VERSION:-0.3.1}"                                   # @wonderwhy-er/desktop-commander
-LEANDC_BIN="${LEANDC_BIN:-$HOME/.local/share/leandc/venv/bin/leandc}"
+LEANDC_BIN="${LEANDC_BIN:-$(command -v leandc || true)}"   # the pipx install; set LEANDC_BIN for another one
+[ -x "$LEANDC_BIN" ] || { echo "setup: leandc not found; install it first (see the README) or set LEANDC_BIN" >&2; exit 1; }
+# A config to copy: the personal one if it exists, else the example shipped in this checkout.
 LEANDC_CONFIG="${LEANDC_CONFIG:-$HOME/.config/leandc/config.toml}"
+[ -f "$LEANDC_CONFIG" ] || LEANDC_CONFIG="$REPO/src/leandc/config.example.toml"
 DC_SHELL="${DC_SHELL:-$(command -v bash)}"
 PY="${LEANDC_PYTHON:-python3}"
 
@@ -52,7 +55,7 @@ sed -E "s|^state_dir[[:space:]]*=[[:space:]]*\"[^\"]*\"|state_dir = \"$WORK/lean
 chmod 600 "$BENCH_CONFIG"
 grep -q "leandc-state" "$BENCH_CONFIG" || { echo "setup: could not set state_dir in $LEANDC_CONFIG" >&2; exit 1; }
 cat > "$WORK/mcp-leandc.json" <<EOF
-{"mcpServers": {"leandc": {"command": "$LEANDC_BIN", "args": ["serve", "--config", "$BENCH_CONFIG"],
+{"mcpServers": {"leandc": {"command": "$LEANDC_BIN", "args": ["serve", "--config", "$BENCH_CONFIG", "--transport", "stdio"],
   "env": {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"}}}}
 EOF
 echo "bench work dir ready: $WORK (fixture $(cut -c1-7 "$WORK/fixture-commit"), DC $DC_VERSION)"
