@@ -33,7 +33,7 @@ Use GitHub private vulnerability reporting: open the repository's **Security** t
 - Run the server as a dedicated OS user with no `sudo` or admin rights, no private SSH keys and no agent forwarding.
 - Prefer a disposable server that holds no production secrets, kept off networks that should stay out of reach.
 - On a Mac used through stdio, review any `ssh`, `scp` or `rsync` call before approving the call in the client.
-- See the "Run as a service" section of the [README](README.md#run-as-a-service) for running the server as a dedicated user.
+- See the [Security section of the README](README.md#security) for how to create that user and start the service as it.
 
 ## Usage log
 
