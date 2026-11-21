@@ -218,6 +218,6 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -e '.[dev]'
 
 Tests need bash and `pgrep`. The MCP SDK is pinned (`mcp==2.3.0`) and the middleware API relied on by LeanDC is provisional, so re-run the suite after any SDK bump, then regenerate `requirements.txt`.
 
----
 
-RnD: Used Claude Sonnet 5.5
+
+> RnD: Used Claude Sonnet 5.5
